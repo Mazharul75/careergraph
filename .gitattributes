@@ -1,0 +1,42 @@
+# Normalize line endings.
+#
+# Development happens on Windows (CRLF); CI, Docker images, and production all run Linux (LF).
+# Without this, shell scripts and Docker entrypoints committed from Windows fail in the container
+# with "bad interpreter: /bin/sh^M" — a genuinely confusing error to debug.
+#
+# `text=auto` means: store everything as LF in the repository, and convert on checkout according
+# to the platform. The files below are pinned to LF because they are *executed* on Linux
+# regardless of where they were edited.
+
+* text=auto eol=lf
+
+*.sh        text eol=lf
+*.bash      text eol=lf
+Dockerfile  text eol=lf
+*.dockerfile text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+Makefile    text eol=lf
+
+# Windows-only files keep CRLF.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# Binary — never touch these.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.docx      binary
+*.woff      binary
+*.woff2     binary
+*.pkl       binary
+*.bin       binary
+
+# Collapse lockfiles in diffs — they're generated, and reviewing them line by line is noise.
+package-lock.json  linguist-generated=true -diff
+poetry.lock        linguist-generated=true -diff
+uv.lock            linguist-generated=true -diff
