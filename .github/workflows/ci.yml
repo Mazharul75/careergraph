@@ -119,6 +119,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Buildx
+        # Required for the GitHub Actions cache backend below. The runner's default builder
+        # uses the plain `docker` driver, which cannot export a cache — the build fails with
+        # "Cache export is not supported for the docker driver". setup-buildx-action creates a
+        # `docker-container` driver instance, which can.
+        uses: docker/setup-buildx-action@v3
+
       - name: Build backend image
         uses: docker/build-push-action@v6
         with:
