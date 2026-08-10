@@ -1,0 +1,82 @@
+# Local development stack. `docker compose up` from the repository root.
+#
+# Postgres and Redis publish their ports to the host so you can run pytest, psql, or the API
+# directly on your machine against the same containers.
+
+name: careergraph
+
+services:
+  db:
+    # pgvector's own image: PostgreSQL 16 with the vector extension already compiled in.
+    # Building pgvector from source on Windows is genuinely painful; this sidesteps it.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-careergraph}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-careergraph_local_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-careergraph}
+    ports:
+      # Host port 5433, not 5432. A natively installed PostgreSQL commonly already owns 5432,
+      # and the failure mode is nasty: Docker still starts, but connections to `localhost`
+      # silently reach the *other* server and fail with "password authentication failed" —
+      # which reads like a credentials bug rather than a port collision.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Scripts here run once, on first initialisation of an empty data volume.
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      # Without this, `depends_on` only waits for the container to *start*, not for Postgres
+      # to accept connections — so the API races ahead and crashes on first query.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-careergraph} -d ${POSTGRES_DB:-careergraph}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    # Not used until Phase 2 (Celery broker). Declared now so the local stack matches the
+    # deployed topology and Phase 2 needs no infrastructure change.
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      # Inside the compose network, services reach each other by service name — `db`, not
+      # localhost. This is why the URL differs from the one in .env used for host-side pytest.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-careergraph}:${POSTGRES_PASSWORD:-careergraph_local_dev_only}@db:5432/${POSTGRES_DB:-careergraph}
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # Bind-mount the source for hot reload in development. The image still contains a full
+      # copy, so the deployed container does not depend on this mount existing.
+      - ./backend/app:/app/app:ro
+      - ./backend/alembic:/app/alembic:ro
+    command:
+      - sh
+      - -c
+      - "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  postgres_data:
+  redis_data:

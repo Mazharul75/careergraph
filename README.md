@@ -127,8 +127,68 @@ careergraph/
 
 ## Getting started
 
-> Filled in during Phase 1, once there is something to run. It will be:
-> `git clone` → `cp .env.example .env` → `docker compose up` → API on `localhost:8000/docs`.
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (WSL2
+backend on Windows) and [uv](https://docs.astral.sh/uv/). Python itself is not required on the
+host — uv fetches its own.
+
+```bash
+git clone https://github.com/Mazharul75/careergraph.git && cd careergraph
+```
+
+```bash
+cp .env.example .env
+```
+
+```bash
+docker compose up
+```
+
+That brings up Postgres (with `pgvector`), Redis, and the API, applies migrations, and serves:
+
+| URL | What |
+|---|---|
+| http://localhost:8000/docs | Swagger UI |
+| http://localhost:8000/health | Liveness probe |
+| http://localhost:8000/health/ready | Readiness probe (checks Postgres) |
+
+> **Ports:** Postgres is published on host port **5433** and Redis on **6380**, not their
+> defaults. A natively installed PostgreSQL usually already owns 5432, and the collision
+> surfaces as a misleading "password authentication failed". Override with `POSTGRES_HOST_PORT`
+> and `REDIS_HOST_PORT` in `.env` if those clash too.
+
+### Running tests
+
+Tests run on the host against the containerised database, so only `db` needs to be up:
+
+```bash
+docker compose up -d db
+```
+
+```bash
+cd backend && uv sync --all-groups
+```
+
+```bash
+uv run pytest
+```
+
+### The rest of the CI gate
+
+```bash
+uv run ruff check . && uv run ruff format --check . && uv run mypy app
+```
+
+### Migrations
+
+```bash
+uv run alembic upgrade head
+```
+
+```bash
+uv run alembic revision --autogenerate -m "describe the change"
+```
+
+Schema conventions and the target ERD: **[docs/database.md](docs/database.md)**.
 
 ## Development workflow
 
@@ -141,7 +201,8 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Repo scaffolding, PRD, ADRs, branching strategy | ✅ Done |
-| 1 | Schema + migrations, JWT auth, layered skeleton, Docker, CI, first deploy | ⬜ Next |
+| 1a | Schema + migrations, layered skeleton, health probes, Docker, tests, CI | ✅ Done |
+| 1b | JWT auth (register/login/refresh), roles, first live deploy | ⬜ Next |
 | 2 | Resume upload + NLP parsing, embeddings, pgvector matching, Celery pipeline | ⬜ |
 | 3 | NetworkX skill-dependency graph + shortest-path recommendations | ⬜ |
 | 4 | Next.js dashboard: auth, match cards, skill-gap radar, learning-path view | ⬜ |
@@ -153,6 +214,7 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 
 - [Product requirements](docs/PRD.md) — the problem, users, scope, and success criteria
 - [Architecture](docs/architecture.md) — layering, request lifecycle, async design
+- [Database design](docs/database.md) — ERD, normalization notes, migration conventions
 - [Engineering checklist](docs/CHECKLIST.md) — the standards this project holds itself to
 - [Architecture Decision Records](docs/adr/) — why each significant choice was made
 - [Contributing](CONTRIBUTING.md) — branching model and commit conventions

@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same branch. Pushing three times in a minute should not queue
+# three full pipelines.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: this workflow only reads the repository. The default token has broader
+# write scopes, and a compromised dependency in a build step inherits whatever it is given.
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.12.3"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Ruff — lint
+        run: uv run ruff check --output-format=github .
+
+      - name: Ruff — format check
+        run: uv run ruff format --check .
+
+      - name: Mypy — type check
+        run: uv run mypy app
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        # Same image as docker-compose. CI testing against a different Postgres than you
+        # develop on is how "passes locally, fails in CI" becomes a way of life.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: careergraph
+          POSTGRES_PASSWORD: careergraph
+          POSTGRES_DB: careergraph_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://careergraph:careergraph@localhost:5432/careergraph_test
+      TEST_DATABASE_URL: postgresql+asyncpg://careergraph:careergraph@localhost:5432/careergraph_test
+      ENVIRONMENT: ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Verify migrations apply cleanly
+        # Runs before pytest so a broken migration fails with a clear message rather than as a
+        # confusing cascade of missing-table errors inside the test suite.
+        run: uv run alembic upgrade head
+
+      - name: Verify migrations are reversible
+        # A downgrade that doesn't work is discovered during an incident, at the worst possible
+        # moment. Cheap to check here.
+        run: |
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+
+      - name: Run tests
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/coverage.xml
+          retention-days: 7
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          # Without a cache, this rebuilds from scratch on every run and dominates CI time.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Single gate job for branch protection to require. Requiring the individual jobs by name
+  # means every added or renamed job needs the ruleset edited too; requiring one aggregate
+  # check does not. `if: always()` is essential — without it this job is skipped when an
+  # upstream job fails, and a skipped required check does not block a merge.
+  ci-ok:
+    name: CI
+    runs-on: ubuntu-latest
+    needs: [lint, test, docker]
+    if: always()
+    steps:
+      - name: Fail if any upstream job did not succeed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo "All checks passed."
