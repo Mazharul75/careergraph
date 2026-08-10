@@ -1,0 +1,23 @@
+# Keep the build context small and make sure nothing secret is ever copied into an image.
+# An image layer is permanent: a .env copied in and deleted later is still recoverable.
+.env
+.env.*
+!.env.example
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+.git/
+.gitignore
+tests/
+*.md

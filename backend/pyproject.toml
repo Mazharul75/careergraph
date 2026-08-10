@@ -1,0 +1,115 @@
+[project]
+name = "careergraph-backend"
+version = "0.1.0"
+description = "CareerGraph API and background worker"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.6",
+    "uvicorn[standard]>=0.34.0",
+    "pydantic>=2.10.4",
+    "pydantic-settings>=2.7.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.1",
+    "ruff>=0.8.4",
+    "mypy>=1.14.0",
+]
+
+[tool.uv]
+# This is an application, not a distributable library, so there is nothing to build.
+# `pythonpath` in the pytest config below is what makes `import app` resolve.
+package = false
+
+# --------------------------------------------------------------------------------------
+# Ruff — linter and formatter. Replaces flake8 + isort + black with one fast tool.
+# --------------------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["."]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes — undefined names, unused imports
+    "I",    # isort — import ordering
+    "N",    # pep8-naming
+    "UP",   # pyupgrade — modern syntax
+    "B",    # flake8-bugbear — likely bugs
+    "C4",   # comprehension simplifications
+    "SIM",  # simplifications
+    "S",    # flake8-bandit — security lints
+    "ASYNC",# async-specific footguns (blocking calls in async defs)
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "B008",  # function call in default arg — this is exactly how FastAPI's Depends() works
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately use asserts (S101) and hardcoded dummy passwords (S105/S106).
+"tests/**" = ["S101", "S105", "S106"]
+# Migrations are partly generated and keep Alembic's own conventions.
+"alembic/versions/*" = ["E501", "I001"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+# Without this, ruff sees the `alembic/` directory in the project root and classifies the
+# installed `alembic` package as first-party, so it demands an import order that contradicts
+# the one it would enforce anywhere else.
+known-third-party = ["alembic"]
+
+# --------------------------------------------------------------------------------------
+# Mypy — static type checking.
+# --------------------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+plugins = []
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+strict_equality = true
+exclude = ["alembic/versions/"]
+
+# --------------------------------------------------------------------------------------
+# Pytest
+# --------------------------------------------------------------------------------------
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Both scopes must be "session". The database engine is a session-scoped fixture, and an
+# asyncpg connection is bound to the event loop that created it. With function-scoped tests,
+# every test gets a fresh loop and inherits a connection from a different one — which fails
+# with "got Future attached to a different loop". Sharing one loop for the whole session is
+# what makes a session-scoped engine legal.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+addopts = "-q --strict-markers --strict-config"
+markers = [
+    "integration: touches a real database or the HTTP layer",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/__init__.py", "alembic/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
