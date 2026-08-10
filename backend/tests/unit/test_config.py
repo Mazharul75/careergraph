@@ -25,14 +25,10 @@ def _settings(**overrides: object) -> Settings:
 
 
 class TestDatabaseUrl:
-    def test_missing_database_url_is_fatal(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_missing_database_url_is_fatal(self) -> None:
         # An API that boots without a database only fails later, and more confusingly.
-        #
-        # `_env_file=None` skips the .env file but NOT the process environment, and the test
-        # suite exports DATABASE_URL. Without this delenv the test passes vacuously — it would
-        # keep passing even if the field were given a default, which is exactly the regression
-        # it exists to catch.
-        monkeypatch.delenv("DATABASE_URL", raising=False)
+        # The autouse `isolated_environment` fixture strips DATABASE_URL from the process
+        # environment, so this genuinely exercises the missing-value path.
         with pytest.raises(ValidationError):
             Settings(_env_file=None)  # type: ignore[call-arg]
 
