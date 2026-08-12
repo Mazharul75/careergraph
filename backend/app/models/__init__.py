@@ -6,6 +6,7 @@ would cheerfully emit a migration that drops the table it doesn't know about.
 """
 
 from app.db.base import Base
+from app.models.refresh_token import RefreshToken
 from app.models.user import User, UserRole
 
-__all__ = ["Base", "User", "UserRole"]
+__all__ = ["Base", "RefreshToken", "User", "UserRole"]
