@@ -20,12 +20,18 @@ services:
     # were red — which defeats the point of having a pipeline.
     autoDeploy: false
 
-    # Migrations run on start rather than as a pre-deploy step, because preDeployCommand is a
-    # paid feature. `alembic upgrade head` is idempotent, so running it on every boot is safe;
-    # it is a no-op once the database is at head.
-    dockerCommand: >-
-      sh -c "alembic upgrade head &&
-      uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'"
+    # A single bare token, deliberately. An earlier version inlined
+    # `sh -c "alembic upgrade head && uvicorn ..."` here and failed with exit 127: Render runs
+    # dockerCommand through its own shell, so the extra sh -c wrapper meant the whole quoted
+    # string reached the container as one command name. Anything containing quotes, &&, or
+    # variables is at the mercy of two layers of parsing; a script path is at the mercy of none.
+    #
+    # The script applies migrations, then execs uvicorn. Migrations run on start rather than as
+    # a pre-deploy step because preDeployCommand is a paid feature; `alembic upgrade head` is
+    # idempotent, so running it on every boot is a no-op once the database is at head.
+    #
+    # See backend/start.sh.
+    dockerCommand: /app/start.sh
 
     healthCheckPath: /health
 
