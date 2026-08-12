@@ -77,6 +77,15 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://careergraph:careergraph@localhost:5432/careergraph_test
       TEST_DATABASE_URL: postgresql+asyncpg://careergraph:careergraph@localhost:5432/careergraph_test
       ENVIRONMENT: ci
+      # Settings requires this, and the runner has no .env file — so without it every step that
+      # imports the application (alembic, pytest) dies at import time with a ValidationError.
+      #
+      # A throwaway literal is correct here, not a repository secret: nothing this key signs
+      # ever leaves the runner, and a real secret in CI would be a credential that leaks into
+      # every fork's build logs for no benefit. It is deliberately NOT the .env.example
+      # placeholder, so that if ENVIRONMENT here is ever changed to staging or production the
+      # weak-secret guard still has something to catch.
+      JWT_SECRET_KEY: ci-only-throwaway-signing-key-not-used-outside-this-runner
 
     steps:
       - uses: actions/checkout@v4
