@@ -15,17 +15,13 @@ set -e # abort on any failure: never start a server against a half-migrated sche
 echo "Applying database migrations..."
 /app/.venv/bin/alembic upgrade head
 
-echo "Starting API on port ${PORT:-8000}..."
-# `exec` replaces this shell with uvicorn, so uvicorn becomes PID 1 and receives SIGTERM
-# directly when the platform stops the container. Without it, the signal goes to /bin/sh,
-# which does not forward it, and every deploy ends in a hard kill after the grace period —
-# dropping in-flight requests instead of draining them.
-#
-# --proxy-headers and --forwarded-allow-ips are required behind a load balancer. Without them
-# every request appears to originate from the proxy, so client IPs are wrong and generated
-# URLs use http:// even though the connection was HTTPS.
-exec /app/.venv/bin/uvicorn app.main:app \
-  --host 0.0.0.0 \
-  --port "${PORT:-8000}" \
-  --proxy-headers \
-  --forwarded-allow-ips='*'
+# Migrations run here, in the entrypoint, rather than in either process defined in the
+# Procfile. Both start concurrently, so putting `alembic upgrade` in one of them would race
+# the other against a schema that does not exist yet.
+
+echo "Starting API and worker (port ${PORT:-8000})..."
+# `exec` replaces this shell with honcho, so honcho becomes PID 1 and receives SIGTERM
+# directly when the platform stops the container. honcho forwards the signal to both children.
+# Without it, the signal stops at /bin/sh, which does not forward, and every deploy ends in a
+# hard kill after the grace period — dropping in-flight requests instead of draining them.
+exec /app/.venv/bin/honcho start

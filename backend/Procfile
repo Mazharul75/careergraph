@@ -1,0 +1,17 @@
+# Process definitions for honcho, which runs the API and the Celery worker side by side in a
+# single container. See ADR-0008 for why they are colocated rather than deployed separately:
+# Render's free tier does not offer Background Workers.
+#
+# honcho forwards SIGTERM to both children and exits when either one dies, so a crashed worker
+# takes the container down and gets restarted by the platform — rather than leaving a healthy
+# API quietly accepting uploads that nothing will ever process.
+
+web: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips=*
+
+# --concurrency=1: one child process. The free instance has 512 MB shared with the API, and
+#   each additional child is a full Python interpreter.
+# --max-tasks-per-child: recycle the child periodically, so a slow leak in a parsing library
+#   cannot accumulate into an OOM kill hours later.
+# --without-gossip/--without-mingle: inter-worker coordination chatter that only matters in a
+#   multi-worker cluster. With one worker it is pure Redis traffic and slower startup.
+worker: /app/.venv/bin/celery -A app.workers.celery_app.celery_app worker --loglevel=info --concurrency=1 --max-tasks-per-child=10 --without-gossip --without-mingle

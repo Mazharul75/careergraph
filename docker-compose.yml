@@ -83,6 +83,41 @@ services:
       - -c
       - "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
+  worker:
+    # Locally the worker runs as its own container, which is the architecture ADR-0008
+    # describes and the shape we would deploy on a paid plan. Colocating it with the API via
+    # honcho is a free-tier hosting workaround, not the design — so local development mirrors
+    # the intended topology, and the code is identical either way.
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-careergraph}:${POSTGRES_PASSWORD:-careergraph_local_dev_only}@db:5432/${POSTGRES_DB:-careergraph}
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env — copy it from .env.example}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # Wait for the API container, which is what applies migrations. A worker that starts
+      # first would connect to a database with no `resumes` table.
+      api:
+        condition: service_started
+    volumes:
+      - ./backend/app:/app/app:ro
+    command:
+      - /app/.venv/bin/celery
+      - -A
+      - app.workers.celery_app.celery_app
+      - worker
+      - --loglevel=info
+      - --concurrency=1
+      - --without-gossip
+      - --without-mingle
+
 volumes:
   postgres_data:
   redis_data:
