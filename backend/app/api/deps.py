@@ -14,12 +14,16 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.security import TokenError, decode_access_token
 from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.repositories.refresh_token import RefreshTokenRepository
+from app.repositories.resume import ResumeRepository
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
+from app.services.resume import ResumeService
+from app.workers.dispatcher import CeleryTaskDispatcher
 
 # Annotated aliases keep route signatures readable. Without this, every handler needing a
 # session repeats `session: AsyncSession = Depends(get_db)`.
@@ -53,6 +57,41 @@ def get_auth_service(
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+def get_resume_repository(session: DbSession) -> ResumeRepository:
+    return ResumeRepository(session)
+
+
+ResumeRepo = Annotated[ResumeRepository, Depends(get_resume_repository)]
+
+
+def get_task_dispatcher() -> CeleryTaskDispatcher:
+    """The real queue publisher.
+
+    A dependency rather than a direct import inside the service, so integration tests can
+    override it with a recorder and assert on enqueue behaviour without running a broker.
+    """
+    return CeleryTaskDispatcher()
+
+
+TaskDispatcherDep = Annotated[CeleryTaskDispatcher, Depends(get_task_dispatcher)]
+
+
+def get_resume_service(
+    session: DbSession,
+    resumes: ResumeRepo,
+    dispatcher: TaskDispatcherDep,
+) -> ResumeService:
+    return ResumeService(
+        resumes=resumes,
+        dispatcher=dispatcher,
+        uow=session,
+        max_upload_bytes=get_settings().max_upload_bytes,
+    )
+
+
+ResumeServiceDep = Annotated[ResumeService, Depends(get_resume_service)]
 
 
 # --------------------------------------------------------------------------------------
