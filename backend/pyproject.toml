@@ -16,6 +16,18 @@ dependencies = [
     # release since 2020 and breaks against modern bcrypt.
     "argon2-cffi>=23.1.0",
     "pyjwt>=2.10.1",
+    # --- Phase 2a: async pipeline ---
+    "celery[redis]>=5.4.0",
+    # Sync Postgres driver for the Celery worker. Celery has no event loop, so it cannot use
+    # the asyncpg engine the API uses — see ADR-0005.
+    "psycopg[binary]>=3.2.3",
+    # FastAPI needs this to parse multipart/form-data file uploads.
+    "python-multipart>=0.0.20",
+    # Text extraction. Both are pure-Python and small; nothing here pulls in a native toolchain.
+    "pypdf>=5.1.0",
+    "python-docx>=1.1.2",
+    # Runs the API and the Celery worker as two processes in one container — see ADR-0008.
+    "honcho>=2.0.0",
 ]
 
 [dependency-groups]
@@ -88,6 +100,13 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 strict_equality = true
 exclude = ["alembic/versions/"]
+
+[[tool.mypy.overrides]]
+# Celery ships no type stubs and no py.typed marker. Silencing the import error is honest here
+# — the alternative is a `# type: ignore` on every celery import, which is noisier and easier
+# to leave behind once stubs eventually exist.
+module = ["celery.*"]
+ignore_missing_imports = true
 
 # --------------------------------------------------------------------------------------
 # Pytest

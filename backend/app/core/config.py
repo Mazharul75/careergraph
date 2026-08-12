@@ -98,6 +98,41 @@ class Settings(BaseSettings):
     db_max_overflow: int = 10
     db_echo: bool = False
 
+    # --- Background jobs -------------------------------------------------------------
+    # Defaults to redis_url when unset, so local development needs one Redis variable, while
+    # a deployment can point the broker somewhere else without moving the cache.
+    celery_broker_url: RedisDsn | None = None
+
+    # One worker process. The free instance has 512 MB shared with the API, and each extra
+    # concurrent worker is another full Python interpreter plus whatever it loads.
+    celery_concurrency: int = 1
+
+    # Restart a worker process after this many tasks. Cheap insurance against a slow leak in a
+    # parsing library turning into an OOM kill hours later.
+    celery_max_tasks_per_child: int = 10
+
+    # --- Uploads ---------------------------------------------------------------------
+    # 5 MB. Resumes are a page or two; anything larger is a mistake or an attack, and an
+    # unbounded upload is a trivial way to exhaust memory and disk.
+    max_upload_bytes: int = 5 * 1024 * 1024
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def sync_database_url(self) -> str:
+        """The same database, addressed with a synchronous driver.
+
+        Celery workers have no event loop, so they cannot use the asyncpg engine (ADR-0005).
+        Deriving this from ``database_url`` rather than adding a second setting means the two
+        can never drift apart and point at different databases — a failure that would be
+        invisible until data mysteriously failed to appear.
+        """
+        return str(self.database_url).replace("+asyncpg", "+psycopg", 1)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def broker_url(self) -> str:
+        return str(self.celery_broker_url or self.redis_url)
+
     @model_validator(mode="after")
     def _reject_weak_secret_outside_development(self) -> Settings:
         """Fail startup rather than run production on a publicly known signing key.
