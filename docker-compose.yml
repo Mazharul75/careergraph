@@ -60,6 +60,12 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # Deliberately has no compose-level fallback. A missing JWT_SECRET_KEY must fail loudly
+      # at startup; a default here would let a real deployment inherit a shared, guessable key
+      # without anyone noticing.
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env — copy it from .env.example}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
     ports:
       - "8000:8000"
     depends_on:
