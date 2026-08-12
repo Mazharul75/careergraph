@@ -9,8 +9,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.api.v1 import auth
+
 api_router = APIRouter()
 
-# Registered from Phase 1b onward:
-#   api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+
+# Registered from Phase 2 onward:
 #   api_router.include_router(resumes.router, prefix="/resumes", tags=["resumes"])
+#   api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])

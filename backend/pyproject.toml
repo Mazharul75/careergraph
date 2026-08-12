@@ -6,11 +6,16 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.6",
     "uvicorn[standard]>=0.34.0",
-    "pydantic>=2.10.4",
+    # `email` extra pulls in email-validator, backing Pydantic's EmailStr.
+    "pydantic[email]>=2.10.4",
     "pydantic-settings>=2.7.0",
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
+    # Argon2id password hashing. Used directly rather than through passlib, which has had no
+    # release since 2020 and breaks against modern bcrypt.
+    "argon2-cffi>=23.1.0",
+    "pyjwt>=2.10.1",
 ]
 
 [dependency-groups]

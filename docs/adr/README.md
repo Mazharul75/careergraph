@@ -22,6 +22,7 @@ Rules for this log:
 | [0004](0004-trunk-based-branching-with-pull-requests.md) | Trunk-based branching with pull requests | Accepted |
 | [0005](0005-async-sqlalchemy-with-sync-worker-path.md) | Async SQLAlchemy for the API, sync sessions for workers | Accepted |
 | [0006](0006-uv-for-dependency-management.md) | uv for Python dependency management | Accepted |
+| [0007](0007-opaque-rotating-refresh-tokens.md) | Opaque rotating refresh tokens with reuse detection | Accepted |
 
 ## Template
 

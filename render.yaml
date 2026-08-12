@@ -1,0 +1,58 @@
+# Render Blueprint — infrastructure as code.
+#
+# Committing this rather than clicking through a dashboard means the deployment is reviewable,
+# diffable, and reproducible. Someone reading the repository can see exactly what runs in
+# production without being given access to an account.
+#
+# Apply it from the Render dashboard: New → Blueprint → connect this repository.
+
+services:
+  - type: web
+    name: careergraph-api
+    runtime: docker
+    plan: free
+    region: singapore # closest free region to Bangladesh
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+
+    # Deploys are triggered by the CD workflow *after* CI passes, not by Render watching the
+    # branch. Render's own auto-deploy would ship whatever landed on main even if the tests
+    # were red — which defeats the point of having a pipeline.
+    autoDeploy: false
+
+    # Migrations run on start rather than as a pre-deploy step, because preDeployCommand is a
+    # paid feature. `alembic upgrade head` is idempotent, so running it on every boot is safe;
+    # it is a no-op once the database is at head.
+    dockerCommand: >-
+      sh -c "alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'"
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+
+      # sync: false means "prompt me for this in the dashboard and never store it in git".
+      # These are the only two secrets in the system.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+
+      - key: CORS_ORIGINS
+        sync: false # the Vercel URL, known only after the frontend is deployed
+
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "15"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "30"
+
+      # Neon's free tier caps connections, and the free Render instance is single-process.
+      # A large pool here would exhaust the database's limit before the API ever saturates.
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: DB_MAX_OVERFLOW
+        value: "2"

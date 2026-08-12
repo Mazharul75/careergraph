@@ -38,10 +38,11 @@ erDiagram
     REFRESH_TOKENS {
         uuid id PK
         uuid user_id FK
-        varchar token_hash UK "hash, never the token"
+        varchar token_hash UK "sha256, never the token"
+        uuid family_id "rotation chain id"
         timestamptz expires_at
         timestamptz revoked_at "null while valid"
-        uuid replaced_by_id FK "rotation chain"
+        uuid replaced_by_id FK "successor token"
     }
 
     RESUMES {
@@ -100,7 +101,7 @@ erDiagram
 | Table | Phase | Status |
 |---|---|---|
 | `users` | 1a | ✅ migrated |
-| `refresh_tokens` | 1b | ⬜ |
+| `refresh_tokens` | 1b | ✅ migrated |
 | `resumes`, `skills`, `user_skills`, `jobs`, `job_skills`, `matches` | 2 | ⬜ |
 | `skill_edges` | 3 | ⬜ |
 

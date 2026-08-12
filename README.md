@@ -151,6 +151,20 @@ That brings up Postgres (with `pgvector`), Redis, and the API, applies migration
 | http://localhost:8000/health | Liveness probe |
 | http://localhost:8000/health/ready | Readiness probe (checks Postgres) |
 
+### Authentication
+
+| Method | Route | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | — | Create an account (`job_seeker` or `recruiter`) |
+| `POST` | `/api/v1/auth/login` | — | Exchange credentials for an access + refresh pair |
+| `POST` | `/api/v1/auth/refresh` | refresh token | Rotate for a new pair; old token is invalidated |
+| `POST` | `/api/v1/auth/logout` | refresh token | Revoke the session |
+| `GET` | `/api/v1/auth/me` | bearer | The authenticated user |
+
+Access tokens are 15-minute JWTs. Refresh tokens are opaque, single-use, and rotate on every
+exchange; presenting a spent one is treated as theft and revokes the entire session chain.
+Reasoning and rejected alternatives: **[ADR-0007](docs/adr/0007-opaque-rotating-refresh-tokens.md)**.
+
 > **Ports:** Postgres is published on host port **5433** and Redis on **6380**, not their
 > defaults. A natively installed PostgreSQL usually already owns 5432, and the collision
 > surfaces as a misleading "password authentication failed". Override with `POSTGRES_HOST_PORT`
@@ -202,7 +216,7 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 |---|---|---|
 | 0 | Repo scaffolding, PRD, ADRs, branching strategy | ✅ Done |
 | 1a | Schema + migrations, layered skeleton, health probes, Docker, tests, CI | ✅ Done |
-| 1b | JWT auth (register/login/refresh), roles, first live deploy | ⬜ Next |
+| 1b | JWT auth (register/login/refresh/logout), roles, CD pipeline, live deploy | ✅ Done |
 | 2 | Resume upload + NLP parsing, embeddings, pgvector matching, Celery pipeline | ⬜ |
 | 3 | NetworkX skill-dependency graph + shortest-path recommendations | ⬜ |
 | 4 | Next.js dashboard: auth, match cards, skill-gap radar, learning-path view | ⬜ |

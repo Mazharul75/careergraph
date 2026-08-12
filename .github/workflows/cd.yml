@@ -1,0 +1,75 @@
+name: CD
+
+# Continuous deployment: every merge to main ships, but only if CI passed first.
+#
+# `workflow_run` is what enforces that ordering. Triggering on `push` instead would start a
+# deploy in parallel with the tests, so a broken commit could reach production before anything
+# noticed — which is worse than not deploying automatically at all.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two deploys of the same service overlap. cancel-in-progress is deliberately
+  # false: cancelling a half-finished deploy can leave the service in an indeterminate state.
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy API to Render
+    runs-on: ubuntu-latest
+    # A workflow_run event fires whether CI passed or failed, so the result must be checked
+    # explicitly. Without this line, red builds deploy.
+    if: github.event.workflow_run.conclusion == 'success'
+
+    environment:
+      name: production
+      url: https://careergraph-api.onrender.com
+
+    steps:
+      - name: Trigger Render deploy
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret is not set."
+            echo "Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          # The deploy hook is a secret URL; anyone holding it can trigger a deploy, so it is
+          # never echoed. --fail-with-body makes curl exit non-zero on a 4xx/5xx while still
+          # printing the response, so a revoked hook fails the job loudly.
+          curl --fail-with-body --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL"
+          echo "Deploy triggered."
+
+      - name: Wait for the new version to become healthy
+        run: |
+          # Render builds asynchronously, so a successful hook call only means "queued".
+          # Poll /health until it answers, and fail the job if it never does — otherwise a
+          # deploy that crashes on boot shows up as a green pipeline.
+          echo "Waiting for https://careergraph-api.onrender.com/health ..."
+          for attempt in $(seq 1 60); do
+            status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              https://careergraph-api.onrender.com/health || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "Healthy after ${attempt} attempt(s)."
+              exit 0
+            fi
+            echo "  attempt ${attempt}: HTTP ${status}"
+            sleep 10
+          done
+          echo "::error::Service did not become healthy within 10 minutes."
+          exit 1
+
+      - name: Verify readiness (database reachable)
+        run: |
+          # /health only proves the process is up. /health/ready proves it can reach Postgres,
+          # which is what catches a bad DATABASE_URL or a failed migration.
+          curl --fail --silent --show-error \
+            https://careergraph-api.onrender.com/health/ready | tee /dev/stderr | grep -q '"status":"ready"'

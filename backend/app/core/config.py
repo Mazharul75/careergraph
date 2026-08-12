@@ -11,8 +11,19 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import BeforeValidator, PostgresDsn, RedisDsn, computed_field
+from pydantic import (
+    BeforeValidator,
+    PostgresDsn,
+    RedisDsn,
+    SecretStr,
+    computed_field,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# The value shipped in .env.example. Convenient locally, catastrophic in production — anyone
+# who has read the repository can forge a token for any account. Rejected outright below.
+DEV_JWT_SECRET = "dev-only-insecure-secret-change-me-in-production"  # noqa: S105
 
 
 def _split_csv(value: str | list[str]) -> list[str]:
@@ -70,10 +81,42 @@ class Settings(BaseSettings):
     # --- HTTP ----------------------------------------------------------------------
     cors_origins: CommaSeparatedList = ["http://localhost:3000"]
 
+    # --- Authentication ------------------------------------------------------------
+    # SecretStr so the value renders as "**********" in logs, tracebacks, and repr(). A secret
+    # leaks most often through an exception report, not through an attacker reading the code.
+    jwt_secret_key: SecretStr
+    jwt_algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
+
+    # Short-lived by design. A JWT cannot be revoked before it expires, so its lifetime *is*
+    # the window an attacker gets with a stolen one. Fifteen minutes keeps that window small
+    # while refresh-token rotation keeps users signed in.
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 30
+
     # --- Database engine tuning ----------------------------------------------------
     db_pool_size: int = 5
     db_max_overflow: int = 10
     db_echo: bool = False
+
+    @model_validator(mode="after")
+    def _reject_weak_secret_outside_development(self) -> Settings:
+        """Fail startup rather than run production on a publicly known signing key.
+
+        The check runs at boot, so a misconfigured deploy crashes immediately and visibly
+        instead of serving traffic that anyone can forge tokens against.
+        """
+        if self.environment in ("staging", "production"):
+            secret = self.jwt_secret_key.get_secret_value()
+            if secret == DEV_JWT_SECRET:
+                raise ValueError(
+                    "JWT_SECRET_KEY is still the development placeholder. Generate one with: "
+                    'python -c "import secrets; print(secrets.token_urlsafe(64))"'
+                )
+            # 32 bytes is the output size of HMAC-SHA256; a key shorter than that reduces the
+            # effective security of the signature.
+            if len(secret) < 32:
+                raise ValueError("JWT_SECRET_KEY must be at least 32 characters.")
+        return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property
