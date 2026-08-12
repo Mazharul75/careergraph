@@ -48,6 +48,13 @@ WORKDIR /app
 
 COPY --from=builder --chown=appuser:appuser /app /app
 
+# Set the executable bit here rather than trusting git to carry it. Development happens on
+# Windows, which has no POSIX permission bits, so a freshly cloned start.sh can arrive without
+# +x and fail with "permission denied" — a confusing sibling of the exit-127 it replaced.
+# (.gitattributes already pins *.sh to LF endings, which prevents the other classic failure:
+# "bad interpreter: /bin/sh^M".)
+RUN chmod +x /app/start.sh
+
 USER appuser
 
 EXPOSE 8000
@@ -55,4 +62,4 @@ EXPOSE 8000
 # The image is built once and used for both the API and the Celery worker (Phase 2); only the
 # command differs. One image means the code that enqueues a task is provably the same code
 # that executes it.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/start.sh"]
