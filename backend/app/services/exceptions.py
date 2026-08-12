@@ -44,6 +44,32 @@ class InvalidRefreshTokenError(DomainError):
     message = "Refresh token is invalid or has expired."
 
 
+class UnsupportedFileTypeError(DomainError):
+    message = "Only PDF and DOCX files are supported."
+
+
+class FileTooLargeError(DomainError):
+    message = "File is too large."
+
+
+class EmptyFileError(DomainError):
+    message = "The uploaded file is empty."
+
+
+class ResumeNotFoundError(DomainError):
+    """Also raised when the resume exists but belongs to someone else.
+
+    One error for both cases on purpose. A distinct "forbidden" would confirm that a given id
+    exists, letting anyone enumerate how many resumes the system holds.
+    """
+
+    message = "Resume not found."
+
+
+class TooManyPendingResumesError(DomainError):
+    message = "You already have resumes waiting to be processed. Please wait for them to finish."
+
+
 class RefreshTokenReuseDetectedError(DomainError):
     """An already-spent refresh token was presented again.
 

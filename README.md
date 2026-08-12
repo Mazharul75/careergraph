@@ -165,6 +165,19 @@ Access tokens are 15-minute JWTs. Refresh tokens are opaque, single-use, and rot
 exchange; presenting a spent one is treated as theft and revokes the entire session chain.
 Reasoning and rejected alternatives: **[ADR-0007](docs/adr/0007-opaque-rotating-refresh-tokens.md)**.
 
+### Resumes
+
+| Method | Route | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/resumes` | Upload a PDF/DOCX. Returns **202** immediately and queues parsing |
+| `GET` | `/api/v1/resumes` | List your resumes (metadata only) |
+| `GET` | `/api/v1/resumes/{id}` | Poll parse status: `pending → processing → complete`/`failed` |
+| `GET` | `/api/v1/resumes/{id}/text` | Extracted text, once complete |
+
+Upload returns without parsing anything: the request writes a row, publishes a message to
+Redis, and returns. A Celery worker picks it up separately, so a slow PDF never occupies an API
+process. Uploaded bytes are discarded once the text is extracted.
+
 > **Ports:** Postgres is published on host port **5433** and Redis on **6380**, not their
 > defaults. A natively installed PostgreSQL usually already owns 5432, and the collision
 > surfaces as a misleading "password authentication failed". Override with `POSTGRES_HOST_PORT`
@@ -217,6 +230,9 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 | 0 | Repo scaffolding, PRD, ADRs, branching strategy | ✅ Done |
 | 1a | Schema + migrations, layered skeleton, health probes, Docker, tests, CI | ✅ Done |
 | 1b | JWT auth (register/login/refresh/logout), roles, CD pipeline, live deploy | ✅ Done |
+| 2a | Celery + Redis async pipeline, resume upload, PDF/DOCX text extraction | ✅ Done |
+| 2b | Skill vocabulary, extraction from resume text, jobs CRUD | ⬜ Next |
+| 2c | Embeddings (fastembed) + pgvector similarity matching | ⬜ |
 | 2 | Resume upload + NLP parsing, embeddings, pgvector matching, Celery pipeline | ⬜ |
 | 3 | NetworkX skill-dependency graph + shortest-path recommendations | ⬜ |
 | 4 | Next.js dashboard: auth, match cards, skill-gap radar, learning-path view | ⬜ |

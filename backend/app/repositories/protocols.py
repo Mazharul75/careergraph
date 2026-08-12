@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Protocol
 
 from app.models.refresh_token import RefreshToken
+from app.models.resume import Resume
 from app.models.user import User
 
 
@@ -43,3 +44,22 @@ class RefreshTokenRepositoryProtocol(Protocol):
     async def get_by_hash(self, token_hash: str) -> RefreshToken | None: ...
     async def revoke_family(self, family_id: uuid.UUID, revoked_at: datetime) -> int: ...
     def add(self, entity: RefreshToken) -> RefreshToken: ...
+
+
+class ResumeRepositoryProtocol(Protocol):
+    async def get_for_user(self, resume_id: uuid.UUID, user_id: uuid.UUID) -> Resume | None: ...
+    async def get_with_text(self, resume_id: uuid.UUID, user_id: uuid.UUID) -> Resume | None: ...
+    async def list_for_user(self, user_id: uuid.UUID, *, limit: int = 50) -> list[Resume]: ...
+    async def count_pending_for_user(self, user_id: uuid.UUID) -> int: ...
+    def add(self, entity: Resume) -> Resume: ...
+
+
+class TaskDispatcher(Protocol):
+    """How a service hands work to the queue.
+
+    Abstracted for the same reason the repositories are: a unit test can substitute a recorder
+    and assert that a task *would* have been enqueued, with no Redis running and no Celery
+    imported. Without this, every test of the upload path would need a live broker.
+    """
+
+    def enqueue_resume_parse(self, resume_id: uuid.UUID) -> None: ...

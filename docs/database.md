@@ -102,7 +102,9 @@ erDiagram
 |---|---|---|
 | `users` | 1a | ✅ migrated |
 | `refresh_tokens` | 1b | ✅ migrated |
-| `resumes`, `skills`, `user_skills`, `jobs`, `job_skills`, `matches` | 2 | ⬜ |
+| `resumes` | 2a | ✅ migrated |
+| `skills`, `user_skills`, `jobs`, `job_skills` | 2b | ⬜ |
+| `matches` | 2c | ⬜ |
 | `skill_edges` | 3 | ⬜ |
 
 ## Normalization
