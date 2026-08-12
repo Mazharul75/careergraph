@@ -8,9 +8,10 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import DEV_JWT_SECRET, Settings
 
 _VALID_DSN = "postgresql+asyncpg://user:pass@localhost:5432/careergraph"
+_STRONG_SECRET = "x" * 64
 
 
 def _settings(**overrides: object) -> Settings:
@@ -19,7 +20,10 @@ def _settings(**overrides: object) -> Settings:
     Without `_env_file=None`, these tests would pass or fail depending on whether the
     developer happens to have a .env present — the definition of a flaky test.
     """
-    values: dict[str, object] = {"database_url": _VALID_DSN}
+    values: dict[str, object] = {
+        "database_url": _VALID_DSN,
+        "jwt_secret_key": _STRONG_SECRET,
+    }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[arg-type]
 
@@ -64,6 +68,48 @@ class TestCorsOrigins:
     def test_accepts_a_real_list(self) -> None:
         settings = _settings(cors_origins=["http://a.test"])
         assert settings.cors_origins == ["http://a.test"]
+
+
+class TestJwtSecret:
+    def test_missing_secret_is_fatal(self) -> None:
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None, database_url=_VALID_DSN)  # type: ignore[call-arg]
+
+    def test_secret_is_masked_in_repr(self) -> None:
+        # SecretStr matters because secrets leak through exception reports far more often than
+        # through someone reading source code.
+        assert _STRONG_SECRET not in repr(_settings())
+        assert _STRONG_SECRET not in str(_settings())
+
+    def test_secret_value_is_still_retrievable(self) -> None:
+        assert _settings().jwt_secret_key.get_secret_value() == _STRONG_SECRET
+
+    def test_development_placeholder_is_fine_locally(self) -> None:
+        assert _settings(environment="local", jwt_secret_key=DEV_JWT_SECRET) is not None
+
+    @pytest.mark.parametrize("env", ["staging", "production"])
+    def test_development_placeholder_is_refused_in_deployed_environments(self, env: str) -> None:
+        # The placeholder is published in this repository. Booting production with it would let
+        # anyone who has read the repo forge a token for any account.
+        with pytest.raises(ValidationError, match="development placeholder"):
+            _settings(environment=env, jwt_secret_key=DEV_JWT_SECRET)
+
+    @pytest.mark.parametrize("env", ["staging", "production"])
+    def test_short_secret_is_refused_in_deployed_environments(self, env: str) -> None:
+        with pytest.raises(ValidationError, match="at least 32 characters"):
+            _settings(environment=env, jwt_secret_key="too-short")
+
+    def test_short_secret_is_tolerated_locally(self) -> None:
+        # Local development should not be obstructed by production-grade requirements.
+        assert _settings(environment="local", jwt_secret_key="short") is not None
+
+
+class TestTokenLifetimes:
+    def test_access_tokens_default_to_fifteen_minutes(self) -> None:
+        assert _settings().access_token_expire_minutes == 15
+
+    def test_refresh_tokens_default_to_thirty_days(self) -> None:
+        assert _settings().refresh_token_expire_days == 30
 
 
 class TestDerivedFlags:
