@@ -17,6 +17,7 @@ from app.models.user import User, UserRole
 from app.repositories.protocols import (
     JobRepositoryProtocol,
     SkillRepositoryProtocol,
+    TaskDispatcher,
     UnitOfWork,
 )
 from app.services.exceptions import (
@@ -45,10 +46,12 @@ class JobService:
         *,
         jobs: JobRepositoryProtocol,
         skills: SkillRepositoryProtocol,
+        dispatcher: TaskDispatcher,
         uow: UnitOfWork,
     ) -> None:
         self._jobs = jobs
         self._skills = skills
+        self._dispatcher = dispatcher
         self._uow = uow
 
     async def create(
@@ -80,6 +83,10 @@ class JobService:
 
         await self._attach_skills(job)
         await self._uow.commit()
+
+        # Embedding needs a 200 MB model, so it goes on the queue. The job is fully usable for
+        # skill-based scoring immediately; the semantic component appears when the task lands.
+        self._dispatcher.enqueue_job_embedding(job.id)
         return await self._reload(job.id)
 
     async def _attach_skills(self, job: Job) -> None:
@@ -133,8 +140,14 @@ class JobService:
             # Re-extract: the skills are derived from the text, so stale skills after an edit
             # would silently misreport what the job requires.
             await self._attach_skills(job)
+            reembed = True
+        else:
+            reembed = False
 
         await self._uow.commit()
+        if reembed:
+            # The text changed, so the stored vector describes something that no longer exists.
+            self._dispatcher.enqueue_job_embedding(job.id)
         return await self._reload(job.id)
 
     async def _reload(self, job_id: uuid.UUID) -> Job:
