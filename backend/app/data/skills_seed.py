@@ -4,7 +4,7 @@ Scoped deliberately to software engineering rather than spread thinly across eve
 A shallow graph over all careers would produce vague advice everywhere; a dense one over a
 single domain produces advice a student can act on. See the PRD's risk table.
 
-`difficulty` (1–5) is unused until Phase 3, where it becomes the edge weight for shortest-path
+`difficulty` (1-5) is unused until Phase 3, where it becomes the edge weight for shortest-path
 search. Seeding it now means the graph phase starts with data rather than a spreadsheet.
 
 `exact_case=True` marks skills whose names are also ordinary English words. Matched
