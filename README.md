@@ -231,8 +231,9 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 | 1a | Schema + migrations, layered skeleton, health probes, Docker, tests, CI | ✅ Done |
 | 1b | JWT auth (register/login/refresh/logout), roles, CD pipeline, live deploy | ✅ Done |
 | 2a | Celery + Redis async pipeline, resume upload, PDF/DOCX text extraction | ✅ Done |
-| 2b | Skill vocabulary, extraction from resume text, jobs CRUD | ⬜ Next |
-| 2c | Embeddings (fastembed) + pgvector similarity matching | ⬜ |
+| 2b | Skill vocabulary, extraction from resume text, jobs CRUD | ✅ Done |
+| 2c | Embeddings (fastembed) + pgvector similarity matching | ✅ Done |
+| 3 | NetworkX skill graph + shortest-path learning paths | ⬜ Next |
 | 2 | Resume upload + NLP parsing, embeddings, pgvector matching, Celery pipeline | ⬜ |
 | 3 | NetworkX skill-dependency graph + shortest-path recommendations | ⬜ |
 | 4 | Next.js dashboard: auth, match cards, skill-gap radar, learning-path view | ⬜ |

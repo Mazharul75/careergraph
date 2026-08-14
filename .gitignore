@@ -62,6 +62,9 @@ yarn-error.log*
 # Downloaded model weights (fastembed, Phase 2c) — large binaries, fetched at runtime.
 *.onnx
 *.bin
+# Embedding model weights, downloaded at runtime locally and baked into the image in CI.
+.model-cache/
+fastembed_cache/
 
 # ---------- Editors & OS ----------
 .vscode/

@@ -54,7 +54,7 @@ async def app_with_guarded_routes(db_session: AsyncSession) -> FastAPI:
 
 
 @pytest.fixture
-async def guarded_client(app_with_guarded_routes: FastAPI) -> AsyncClient:
+async def guarded_client(app_with_guarded_routes: FastAPI) -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app_with_guarded_routes)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
@@ -63,7 +63,8 @@ async def guarded_client(app_with_guarded_routes: FastAPI) -> AsyncClient:
 async def token_for(client: AsyncClient, email: str, role: str) -> str:
     await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD, "role": role})
     response = await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
-    return response.json()["access_token"]
+    token: str = response.json()["access_token"]
+    return token
 
 
 def bearer(token: str) -> dict[str, str]:

@@ -29,6 +29,15 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev
 
+# Download the embedding model at BUILD time, not on first use.
+#
+# Render's free instance has an ephemeral disk, so a model fetched at runtime is downloaded
+# again after every deploy and every cold start — ~130 MB, on the critical path of a user's
+# first request. Baking it in makes the container start ready: it costs image size, which is
+# free, instead of request latency, which is not.
+ENV FASTEMBED_CACHE_PATH=/app/.model-cache
+RUN uv run python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-en-v1.5')"
+
 
 # ---------------------------------------------------------------------------------------
 # Stage 2 — runtime.
@@ -37,7 +46,10 @@ FROM python:3.12-slim-bookworm AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:$PATH" \
+    # Must match the builder stage. If it does not, the runtime looks in an empty directory
+    # and silently re-downloads a model the image already contains.
+    FASTEMBED_CACHE_PATH=/app/.model-cache
 
 # Run as an unprivileged user. A container process running as root that gets compromised has
 # root inside the container, and that is a much shorter path to escaping it.

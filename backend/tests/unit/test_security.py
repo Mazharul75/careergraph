@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -26,7 +27,7 @@ VALID_PASSWORD = "correct-horse-battery-staple"
 
 
 @pytest.fixture(autouse=True)
-def _jwt_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+def _jwt_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Give this module a deterministic signing key.
 
     The unit conftest strips settings from the environment, so a key must be supplied here.
