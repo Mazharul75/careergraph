@@ -4,7 +4,7 @@ The standards this project holds itself to. Updated at the end of every phase.
 
 **Legend:** ✅ done · 🟡 partially done · ⬜ not started
 
-_Last updated: end of Phase 2a_
+_Last updated: end of Phase 4_
 
 | # | Requirement | Status | Where it lives / when |
 |---|---|---|---|
@@ -23,7 +23,7 @@ _Last updated: end of Phase 2a_
 | 13 | Security basics: input validation, rate limiting, env-var secrets, dep scanning | 🟡 | Validation, `SecretStr`, production secret-strength check, non-root container, no plaintext credentials stored. **Rate limiting and Dependabot in Phase 5** |
 | 14 | Monitoring: structured logs, error tracking, health checks | 🟡 | `/health` + `/health/ready`. structlog + Sentry in Phase 6 |
 | 15 | Docs: README with diagram, setup instructions, ADR log | ✅ | 7 ADRs, PRD, architecture, database docs |
-| 16 | A UI that looks like a product, not a template | ⬜ | Phase 4 |
+| 16 | A UI that looks like a product, not a template | ✅ | Next.js 16 dashboard with a deliberate token palette, a small primitive set, skill-gap radar, and the learning path drawn as an ordered spine |
 
 ## Phase 2a summary
 

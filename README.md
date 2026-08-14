@@ -6,7 +6,9 @@ CareerGraph parses your resume, semantically matches it against real job descrip
 **skill-dependency graph** to compute the shortest learning path from what you know today to what the
 target role requires.
 
-**Status:** 🚧 Phase 0 — scaffolding. No feature code yet. See the [roadmap](#roadmap).
+**Status:** Backend and frontend complete through Phase 4 — auth, async resume parsing, skill
+extraction, semantic matching, graph-based learning paths, and a Next.js dashboard. Security
+hardening and observability remain. See the [roadmap](#roadmap).
 
 <!-- Badges are added in Phase 1, once CI exists.
 [![CI](https://github.com/Mazharul75/careergraph/actions/workflows/ci.yml/badge.svg)](https://github.com/Mazharul75/careergraph/actions/workflows/ci.yml)
@@ -178,10 +180,47 @@ Upload returns without parsing anything: the request writes a row, publishes a m
 Redis, and returns. A Celery worker picks it up separately, so a slow PDF never occupies an API
 process. Uploaded bytes are discarded once the text is extracted.
 
+### Skills, jobs, matching, and learning paths
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/skills` | The 113-skill vocabulary (public) |
+| `GET` | `/api/v1/skills/me` | Your skill profile: confirmed and suggested |
+| `POST` `PATCH` | `/api/v1/skills/me` | Add, confirm, reject, or rate a skill |
+| `POST` `GET` | `/api/v1/jobs` | Add a job description; recruiters can publish public postings |
+| `GET` | `/api/v1/jobs/{id}/match` | Explainable score: coverage, similarity, matched, missing |
+| `GET` | `/api/v1/jobs/{id}/learning-path` | **Ordered** plan to close the gap |
+| `GET` | `/api/v1/skills/{id}/learning-path` | Plan and cheapest route to one skill |
+
+The learning path is the differentiator. Given a posting that says only *"run our production
+Kubernetes clusters"*, it returns:
+
+```
+1. Linux        [prerequisite]    difficulty 3
+2. Docker       [prerequisite]    difficulty 3   after: Linux
+3. Networking   [prerequisite]    difficulty 3
+4. Kubernetes   [REQUIRED BY JOB] difficulty 5   after: Docker, Networking
+```
+
+Linux, Docker, and Networking appear nowhere in the job text. They come from a topological sort
+over a prerequisite DAG — see **[ADR-0010](docs/adr/0010-skill-graph-as-a-dag.md)**.
+
 > **Ports:** Postgres is published on host port **5433** and Redis on **6380**, not their
 > defaults. A natively installed PostgreSQL usually already owns 5432, and the collision
 > surfaces as a misleading "password authentication failed". Override with `POSTGRES_HOST_PORT`
 > and `REDIS_HOST_PORT` in `.env` if those clash too.
+
+### Running the frontend
+
+```bash
+cd frontend && cp .env.local.example .env.local && npm install
+```
+
+```bash
+npm run dev
+```
+
+Opens on http://localhost:3000. See [frontend/README.md](frontend/README.md).
 
 ### Running tests
 
@@ -233,11 +272,12 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 | 2a | Celery + Redis async pipeline, resume upload, PDF/DOCX text extraction | ✅ Done |
 | 2b | Skill vocabulary, extraction from resume text, jobs CRUD | ✅ Done |
 | 2c | Embeddings (fastembed) + pgvector similarity matching | ✅ Done |
-| 3 | NetworkX skill graph + shortest-path learning paths | ⬜ Next |
+| 3 | NetworkX skill graph + shortest-path learning paths | ✅ Done |
+| 4 | Next.js dashboard: auth, match cards, skill-gap radar, path view | ✅ Done |
 | 2 | Resume upload + NLP parsing, embeddings, pgvector matching, Celery pipeline | ⬜ |
 | 3 | NetworkX skill-dependency graph + shortest-path recommendations | ⬜ |
 | 4 | Next.js dashboard: auth, match cards, skill-gap radar, learning-path view | ⬜ |
-| 5 | Rate limiting, input-validation pass, secrets audit, dependency scanning | ⬜ |
+| 5 | Rate limiting, input-validation pass, secrets audit, dependency scanning | ⬜ Next |
 | 6 | structlog, Sentry, health checks, CD pipeline, public deployment | ⬜ |
 | 7 | Docs polish, load test, demo script | ⬜ |
 

@@ -10,6 +10,7 @@ from app.models.job import Job, JobSkill
 from app.models.refresh_token import RefreshToken
 from app.models.resume import ParseStatus, Resume
 from app.models.skill import Skill, SkillAlias, SkillCategory
+from app.models.skill_edge import SkillEdge
 from app.models.user import User, UserRole
 from app.models.user_skill import SkillSource, SkillStatus, UserSkill
 
@@ -23,6 +24,7 @@ __all__ = [
     "Skill",
     "SkillAlias",
     "SkillCategory",
+    "SkillEdge",
     "SkillSource",
     "SkillStatus",
     "User",

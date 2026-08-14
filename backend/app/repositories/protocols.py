@@ -22,6 +22,7 @@ from app.models.resume import Resume
 from app.models.skill import Skill
 from app.models.user import User
 from app.models.user_skill import SkillStatus, UserSkill
+from app.services.skill_graph import GraphSkill
 from app.services.skill_matching import VocabularyEntry
 
 
@@ -77,6 +78,8 @@ class SkillRepositoryProtocol(Protocol):
     async def list_all(self) -> list[Skill]: ...
     async def get_by_slug(self, slug: str) -> Skill | None: ...
     async def load_vocabulary(self) -> list[VocabularyEntry]: ...
+    async def load_graph_skills(self) -> list[GraphSkill]: ...
+    async def load_edges(self) -> list[tuple[uuid.UUID, uuid.UUID]]: ...
 
 
 class UserSkillRepositoryProtocol(Protocol):

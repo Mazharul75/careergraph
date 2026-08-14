@@ -103,9 +103,9 @@ erDiagram
 | `users` | 1a | ✅ migrated |
 | `refresh_tokens` | 1b | ✅ migrated |
 | `resumes` | 2a | ✅ migrated |
-| `skills`, `user_skills`, `jobs`, `job_skills` | 2b | ⬜ |
-| `matches` | 2c | ⬜ |
-| `skill_edges` | 3 | ⬜ |
+| `skills`, `skill_aliases`, `user_skills`, `jobs`, `job_skills` | 2b | ✅ migrated |
+| embeddings on `resumes` / `jobs` | 2c | ✅ migrated |
+| `skill_edges` | 3 | ✅ migrated |
 
 ## Normalization
 

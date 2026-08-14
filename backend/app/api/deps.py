@@ -25,6 +25,7 @@ from app.repositories.skill import SkillRepository, UserSkillRepository
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
 from app.services.job import JobService
+from app.services.learning_path import LearningPathService
 from app.services.match import MatchService
 from app.services.resume import ResumeService
 from app.services.skill_profile import SkillProfileService
@@ -143,6 +144,17 @@ def get_match_service(
 
 
 MatchServiceDep = Annotated[MatchService, Depends(get_match_service)]
+
+
+def get_learning_path_service(
+    jobs: Annotated[JobRepository, Depends(get_job_repository)],
+    skills: Annotated[SkillRepository, Depends(get_skill_repository)],
+    user_skills: Annotated[UserSkillRepository, Depends(get_user_skill_repository)],
+) -> LearningPathService:
+    return LearningPathService(jobs=jobs, skills=skills, user_skills=user_skills)
+
+
+LearningPathServiceDep = Annotated[LearningPathService, Depends(get_learning_path_service)]
 
 
 # --------------------------------------------------------------------------------------

@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* Design tokens. A small, deliberate palette beats reaching for a different Tailwind colour
+   on every component — that is what makes an interface look assembled rather than designed. */
+@theme {
+  --color-ink: #0b1120;
+  --color-slate-deep: #111827;
+  --color-surface: #ffffff;
+  --color-canvas: #f6f8fb;
+  --color-line: #e3e8ef;
+  --color-muted: #5b6b84;
+  --color-brand: #2f5bea;
+  --color-brand-soft: #eaf0ff;
+  --color-positive: #0f9d6e;
+  --color-positive-soft: #e6f6f0;
+  --color-warn: #b45309;
+  --color-warn-soft: #fdf3e7;
+  --color-danger: #d92d20;
+  --color-danger-soft: #fdecea;
+}
+
+html {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+/* Visible focus for keyboard users. Removing outlines without replacing them is one of the
+   most common accessibility regressions in a styled app. */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

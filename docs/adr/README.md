@@ -25,6 +25,7 @@ Rules for this log:
 | [0007](0007-opaque-rotating-refresh-tokens.md) | Opaque rotating refresh tokens with reuse detection | Accepted |
 | [0008](0008-colocated-celery-worker.md) | Colocate the Celery worker with the API on free hosting | Accepted |
 | [0009](0009-fastembed-onnx-for-embeddings.md) | fastembed (ONNX) for embeddings, with per-task worker recycling | Accepted |
+| [0010](0010-skill-graph-as-a-dag.md) | Model skills as a DAG and plan with topological sort | Accepted |
 
 ## Template
 
