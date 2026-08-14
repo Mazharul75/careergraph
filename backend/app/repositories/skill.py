@@ -10,8 +10,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.skill import Skill
+from app.models.skill_edge import SkillEdge
 from app.models.user_skill import SkillSource, SkillStatus, UserSkill
 from app.repositories.base import BaseRepository
+from app.services.skill_graph import GraphSkill
 from app.services.skill_matching import VocabularyEntry
 
 
@@ -54,6 +56,29 @@ class SkillRepository(BaseRepository[Skill]):
 
     async def load_vocabulary(self) -> list[VocabularyEntry]:
         return to_vocabulary(await self.list_all())
+
+    async def load_graph_skills(self) -> list[GraphSkill]:
+        """Skill nodes for the graph, without aliases.
+
+        A separate query from `list_all` on purpose: the graph needs no aliases, and loading
+        220 alias rows to throw them away on every path request is waste.
+        """
+        result = await self._session.execute(select(Skill).order_by(Skill.canonical_name))
+        return [
+            GraphSkill(
+                skill_id=skill.id,
+                slug=skill.slug,
+                canonical_name=skill.canonical_name,
+                difficulty=skill.difficulty,
+                category=skill.category.value,
+            )
+            for skill in result.scalars().all()
+        ]
+
+    async def load_edges(self) -> list[tuple[uuid.UUID, uuid.UUID]]:
+        """Every prerequisite edge. This table is the graph; NetworkX only traverses it."""
+        result = await self._session.execute(select(SkillEdge.prerequisite_id, SkillEdge.skill_id))
+        return [(prerequisite, skill) for prerequisite, skill in result.all()]
 
 
 class UserSkillRepository(BaseRepository[UserSkill]):
