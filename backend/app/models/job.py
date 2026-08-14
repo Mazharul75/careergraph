@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -21,10 +22,11 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.skill import Skill
+from app.services.embedding import EMBEDDING_DIMENSIONS
 
 
 class Job(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -46,6 +48,12 @@ class Job(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # candidate-ranking target in Phase 2c; a private one is a personal benchmark.
     is_public: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false"), index=True
+    )
+
+    # Written asynchronously by the worker. Null until the embedding task runs, which is why
+    # scoring falls back to skills-only rather than refusing to answer.
+    embedding: Mapped[list[float] | None] = deferred(
+        mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=True)
     )
 
     required_skills: Mapped[list[JobSkill]] = relationship(

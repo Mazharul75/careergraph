@@ -5,11 +5,13 @@ from __future__ import annotations
 import enum
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Enum, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, deferred, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.services.embedding import EMBEDDING_DIMENSIONS
 
 
 class ParseStatus(enum.StrEnum):
@@ -64,6 +66,12 @@ class Resume(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     extracted_text: Mapped[str | None] = deferred(mapped_column(Text, nullable=True))
+
+    # 384-dimensional embedding of the extracted text, written by the worker after parsing.
+    # Deferred like the text: 384 floats is ~3 KB per row, and listing resumes never needs it.
+    embedding: Mapped[list[float] | None] = deferred(
+        mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=True)
+    )
 
     # Populated only when status is FAILED. Holds a short, user-safe reason — never a
     # traceback, which would leak file paths and library versions.

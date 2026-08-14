@@ -17,10 +17,12 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.sync_session import worker_session
+from app.models.job import Job
 from app.models.resume import ParseStatus, Resume
 from app.models.skill import Skill
 from app.models.user_skill import SkillSource, SkillStatus, UserSkill
 from app.repositories.skill import to_vocabulary
+from app.services.embedding import embed_text
 from app.services.extraction import ExtractionError, extract_text
 from app.services.skill_matching import SkillMatcher
 from app.workers.celery_app import celery_app
@@ -115,6 +117,15 @@ def parse_resume(self: Any, resume_id: str) -> str:
             logger.exception("parse_resume: skill extraction failed for resume %s", resume_id)
             skill_count = 0
 
+        # Embedding is the expensive step (~200 MB of model, see ADR-0009) and it is best
+        # effort: a resume with text and skills but no vector still scores, just on skills
+        # alone. Failing the whole parse because the model could not load would throw away
+        # work that already succeeded.
+        try:
+            resume.embedding = embed_text(text)
+        except Exception:
+            logger.exception("parse_resume: embedding failed for resume %s", resume_id)
+
         resume.extracted_text = text
         resume.status = ParseStatus.COMPLETE
         resume.error_message = None
@@ -178,3 +189,40 @@ def _extract_skills(session: Session, user_id: uuid.UUID, text: str) -> int:
     )
     session.execute(stmt)
     return len(rows)
+
+
+@celery_app.task(name="jobs.embed", bind=True, max_retries=2, default_retry_delay=30)
+def embed_job(self: Any, job_id: str) -> str:
+    """Compute and store a job description's embedding.
+
+    A separate task from job creation because creation is synchronous and fast (skill matching
+    takes milliseconds) while embedding needs a 200 MB model. The job is fully usable for
+    skill-based scoring the moment it is created; the semantic component appears when this
+    finishes.
+
+    Idempotent: recomputing an embedding for the same text yields the same vector.
+    """
+    job_uuid = uuid.UUID(job_id)
+
+    with worker_session() as session:
+        job = session.get(Job, job_uuid)
+        if job is None:
+            logger.warning("embed_job: job %s no longer exists", job_id)
+            return "missing"
+
+        try:
+            # Title and description together, matching how skills are extracted, so the two
+            # signals describe the same text rather than subtly different documents.
+            job.embedding = embed_text(f"{job.title}\n{job.description}")
+        except SoftTimeLimitExceeded:
+            logger.error("embed_job: job %s exceeded the time limit", job_id)
+            return "timeout"
+        except Exception as exc:
+            logger.exception("embed_job: failed for job %s", job_id)
+            try:
+                raise self.retry(exc=exc) from exc
+            except self.MaxRetriesExceededError:
+                return "failed"
+
+        logger.info("embed_job: job %s embedded", job_id)
+        return "complete"

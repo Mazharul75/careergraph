@@ -109,7 +109,11 @@ class Settings(BaseSettings):
 
     # Restart a worker process after this many tasks. Cheap insurance against a slow leak in a
     # parsing library turning into an OOM kill hours later.
-    celery_max_tasks_per_child: int = 10
+    # One task per child process. Higher values amortise startup, but the embedding model is
+    # ~200 MB resident (measured) and the free instance shares 512 MB with the API. Recycling
+    # after every task is what actually returns that memory to the OS — CPython does not
+    # reliably hand freed arenas back, and ONNX Runtime allocates natively. See ADR-0009.
+    celery_max_tasks_per_child: int = 1
 
     # --- Uploads ---------------------------------------------------------------------
     # 5 MB. Resumes are a page or two; anything larger is a mistake or an attack, and an

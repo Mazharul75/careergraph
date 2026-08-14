@@ -25,6 +25,7 @@ from app.repositories.skill import SkillRepository, UserSkillRepository
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
 from app.services.job import JobService
+from app.services.match import MatchService
 from app.services.resume import ResumeService
 from app.services.skill_profile import SkillProfileService
 from app.workers.dispatcher import CeleryTaskDispatcher
@@ -125,11 +126,23 @@ def get_job_service(
     session: DbSession,
     jobs: Annotated[JobRepository, Depends(get_job_repository)],
     skills: Annotated[SkillRepository, Depends(get_skill_repository)],
+    dispatcher: TaskDispatcherDep,
 ) -> JobService:
-    return JobService(jobs=jobs, skills=skills, uow=session)
+    return JobService(jobs=jobs, skills=skills, dispatcher=dispatcher, uow=session)
 
 
 JobServiceDep = Annotated[JobService, Depends(get_job_service)]
+
+
+def get_match_service(
+    jobs: Annotated[JobRepository, Depends(get_job_repository)],
+    resumes: ResumeRepo,
+    user_skills: Annotated[UserSkillRepository, Depends(get_user_skill_repository)],
+) -> MatchService:
+    return MatchService(jobs=jobs, resumes=resumes, user_skills=user_skills)
+
+
+MatchServiceDep = Annotated[MatchService, Depends(get_match_service)]
 
 
 # --------------------------------------------------------------------------------------
