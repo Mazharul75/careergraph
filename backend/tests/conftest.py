@@ -65,8 +65,8 @@ def database_url() -> str:
     return TEST_DATABASE_URL
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _apply_migrations(database_url: str) -> None:
+@pytest.fixture(scope="session")
+def apply_migrations(database_url: str) -> None:
     """Bring the test database to head before any test runs.
 
     Synchronous on purpose. Alembic's env.py calls ``asyncio.run()`` internally, which would
@@ -78,7 +78,7 @@ def _apply_migrations(database_url: str) -> None:
 
 
 @pytest.fixture(scope="session")
-async def engine(database_url: str) -> AsyncGenerator[AsyncEngine, None]:
+async def engine(database_url: str, apply_migrations: None) -> AsyncGenerator[AsyncEngine, None]:
     test_engine = create_async_engine(database_url, echo=False)
     yield test_engine
     await test_engine.dispose()

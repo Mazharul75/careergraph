@@ -56,6 +56,31 @@ class EmptyFileError(DomainError):
     message = "The uploaded file is empty."
 
 
+class JobNotFoundError(DomainError):
+    """Also raised for a private job belonging to someone else.
+
+    One error for both, so job ids cannot be enumerated.
+    """
+
+    message = "Job not found."
+
+
+class NotYourJobError(DomainError):
+    message = "You can only modify jobs you created."
+
+
+class RecruiterRoleRequiredError(DomainError):
+    message = "Only recruiter accounts can publish public job postings."
+
+
+class SkillNotFoundError(DomainError):
+    message = "No such skill."
+
+
+class SkillNotInProfileError(DomainError):
+    message = "That skill is not in your profile."
+
+
 class ResumeNotFoundError(DomainError):
     """Also raised when the resume exists but belongs to someone else.
 

@@ -47,7 +47,10 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Mypy — type check
-        run: uv run mypy app
+        # `tests` is included deliberately: test doubles stand in for Protocols, and a
+        # Protocol gaining a method must fail type-checking rather than surfacing as an
+        # AttributeError at runtime.
+        run: uv run mypy app tests
 
   test:
     name: Tests

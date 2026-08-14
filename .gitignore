@@ -49,12 +49,22 @@ yarn-error.log*
 
 # ---------- Data & uploads ----------
 # User-uploaded resumes must never enter version control.
-uploads/
+#
+# Leading slashes matter here. An unanchored `data/` matches a directory of that name at ANY
+# depth — which silently ignored `backend/app/data/`, the seed vocabulary that migration 0004
+# imports. Source code disappearing from a commit is invisible in review; it surfaces later as
+# ModuleNotFoundError during a production migration.
+/uploads/
+/data/
 *.db
 *.sqlite3
-data/
-models/*.bin
 *.pkl
+# Downloaded model weights (fastembed, Phase 2c) — large binaries, fetched at runtime.
+*.onnx
+*.bin
+# Embedding model weights, downloaded at runtime locally and baked into the image in CI.
+.model-cache/
+fastembed_cache/
 
 # ---------- Editors & OS ----------
 .vscode/

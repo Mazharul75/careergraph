@@ -19,13 +19,15 @@ async def register(client: AsyncClient, email: str = "ada@example.com", **kwargs
     payload = {"email": email, "password": PASSWORD, "full_name": "Ada Lovelace", **kwargs}
     response = await client.post(f"{AUTH}/register", json=payload)
     assert response.status_code == 201, response.text
-    return response.json()
+    body: dict = response.json()
+    return body
 
 
 async def login(client: AsyncClient, email: str = "ada@example.com") -> dict:
     response = await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
     assert response.status_code == 200, response.text
-    return response.json()
+    body: dict = response.json()
+    return body
 
 
 class TestRegistration:

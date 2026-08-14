@@ -9,6 +9,7 @@ the service actually depends on.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -30,7 +31,7 @@ PASSWORD = "correct-horse-battery-staple"
 
 
 @pytest.fixture(autouse=True)
-def _settings(monkeypatch: pytest.MonkeyPatch) -> None:
+def _settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/careergraph_test")
     monkeypatch.setenv("JWT_SECRET_KEY", "unit-test-signing-key-not-used-anywhere-else")
     get_settings.cache_clear()

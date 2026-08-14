@@ -28,6 +28,13 @@ dependencies = [
     "python-docx>=1.1.2",
     # Runs the API and the Celery worker as two processes in one container — see ADR-0008.
     "honcho>=2.0.0",
+    # --- Phase 2c: semantic matching ---
+    # fastembed runs sentence-transformer models through ONNX Runtime instead of PyTorch:
+    # roughly a tenth the footprint, which is what makes it fit on a 512 MB instance
+    # alongside the API and the worker. See ADR-0009.
+    "fastembed>=0.5.0",
+    # SQLAlchemy type for pgvector's `vector` column.
+    "pgvector>=0.3.6",
 ]
 
 [dependency-groups]
@@ -38,6 +45,7 @@ dev = [
     "httpx>=0.28.1",
     "ruff>=0.8.4",
     "mypy>=1.14.0",
+    "psutil>=7.2.2",
 ]
 
 [tool.uv]
@@ -77,6 +85,9 @@ ignore = [
 "tests/**" = ["S101", "S105", "S106"]
 # Migrations are partly generated and keep Alembic's own conventions.
 "alembic/versions/*" = ["E501", "I001"]
+# The seed vocabulary is a data table inside a `# fmt: off` block, so the formatter leaves it
+# alone by design — one skill per line reads far better than wrapped tuples.
+"app/data/skills_seed.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
@@ -100,6 +111,14 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 strict_equality = true
 exclude = ["alembic/versions/"]
+
+[[tool.mypy.overrides]]
+# Test fakes stand in for Protocols, and a Protocol gaining a method must fail type-checking
+# rather than surfacing as an AttributeError at runtime — which is exactly what happened when
+# TaskDispatcher gained enqueue_job_embedding. Relaxed on untyped defs because test bodies are
+# self-evident and annotating every assertion adds noise without adding safety.
+module = ["tests.*"]
+disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
 # Celery ships no type stubs and no py.typed marker. Silencing the import error is honest here

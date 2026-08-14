@@ -42,6 +42,12 @@ class FakeResumeRepository:
     async def list_for_user(self, user_id: uuid.UUID, *, limit: int = 50) -> list[Resume]:
         return [r for r in self.rows.values() if r.user_id == user_id][:limit]
 
+    async def latest_embedded_for_user(self, user_id: uuid.UUID) -> Resume | None:
+        embedded = [
+            r for r in self.rows.values() if r.user_id == user_id and r.embedding is not None
+        ]
+        return embedded[-1] if embedded else None
+
     async def count_pending_for_user(self, user_id: uuid.UUID) -> int:
         return sum(
             1
@@ -59,9 +65,13 @@ class FakeResumeRepository:
 class RecordingDispatcher:
     def __init__(self) -> None:
         self.enqueued: list[uuid.UUID] = []
+        self.embeddings_enqueued: list[uuid.UUID] = []
 
     def enqueue_resume_parse(self, resume_id: uuid.UUID) -> None:
         self.enqueued.append(resume_id)
+
+    def enqueue_job_embedding(self, job_id: uuid.UUID) -> None:
+        self.embeddings_enqueued.append(job_id)
 
 
 class FakeUnitOfWork:

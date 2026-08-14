@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from app.workers.tasks import parse_resume
+from app.workers.tasks import embed_job, parse_resume
 
 
 class CeleryTaskDispatcher:
@@ -17,3 +17,6 @@ class CeleryTaskDispatcher:
         # `.delay()` publishes to Redis and returns immediately — it does not wait for a worker
         # to pick the message up, or even to exist.
         parse_resume.delay(str(resume_id))
+
+    def enqueue_job_embedding(self, job_id: uuid.UUID) -> None:
+        embed_job.delay(str(job_id))

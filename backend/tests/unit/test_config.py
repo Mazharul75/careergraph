@@ -25,7 +25,9 @@ def _settings(**overrides: object) -> Settings:
         "jwt_secret_key": _STRONG_SECRET,
     }
     values.update(overrides)
-    return Settings(_env_file=None, **values)  # type: ignore[arg-type]
+    # _env_file is a pydantic-settings runtime kwarg absent from the generated __init__
+    # signature, and database_url is declared as PostgresDsn but coerced from str.
+    return Settings(_env_file=None, **values)  # type: ignore[arg-type, call-arg]
 
 
 class TestDatabaseUrl:
@@ -73,7 +75,7 @@ class TestCorsOrigins:
 class TestJwtSecret:
     def test_missing_secret_is_fatal(self) -> None:
         with pytest.raises(ValidationError):
-            Settings(_env_file=None, database_url=_VALID_DSN)  # type: ignore[call-arg]
+            Settings(_env_file=None, database_url=_VALID_DSN)  # type: ignore[arg-type, call-arg]
 
     def test_secret_is_masked_in_repr(self) -> None:
         # SecretStr matters because secrets leak through exception reports far more often than

@@ -51,6 +51,28 @@ class ResumeRepository(BaseRepository[Resume]):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def latest_embedded_for_user(self, user_id: uuid.UUID) -> Resume | None:
+        """The user's most recent successfully-embedded resume.
+
+        Most recent, not "all of them": a user may upload several versions, and the newest
+        complete one is the best statement of who they are now. `undefer` is required because
+        the embedding column is deferred — without it the attribute access after loading would
+        trigger lazy I/O and raise MissingGreenlet.
+        """
+        stmt = (
+            select(Resume)
+            .where(
+                Resume.user_id == user_id,
+                Resume.status == ParseStatus.COMPLETE,
+                Resume.embedding.is_not(None),
+            )
+            .options(undefer(Resume.embedding))
+            .order_by(Resume.created_at.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def count_pending_for_user(self, user_id: uuid.UUID) -> int:
         """How many of this user's resumes are still queued or in flight.
 

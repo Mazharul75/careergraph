@@ -26,7 +26,7 @@ def make_user(email: str = "ada@example.com", **overrides: object) -> User:
         "full_name": "Ada Lovelace",
     }
     defaults.update(overrides)
-    return User(**defaults)  # type: ignore[arg-type]
+    return User(**defaults)
 
 
 class TestGetByEmail:

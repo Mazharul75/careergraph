@@ -12,10 +12,19 @@ import uuid
 from typing import Any
 
 from celery.exceptions import SoftTimeLimitExceeded
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session, selectinload
 
 from app.db.sync_session import worker_session
+from app.models.job import Job
 from app.models.resume import ParseStatus, Resume
+from app.models.skill import Skill
+from app.models.user_skill import SkillSource, SkillStatus, UserSkill
+from app.repositories.skill import to_vocabulary
+from app.services.embedding import embed_text
 from app.services.extraction import ExtractionError, extract_text
+from app.services.skill_matching import SkillMatcher
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -96,6 +105,27 @@ def parse_resume(self: Any, resume_id: str) -> str:
                 _fail(resume, "Parsing failed unexpectedly. Please try uploading again.")
                 return "failed"
 
+        # Skills are extracted in the same transaction as the text. If this were a second
+        # queued task, a resume could sit in `complete` with an empty profile whenever the
+        # follow-up failed — a state the UI would have no way to explain.
+        try:
+            skill_count = _extract_skills(session, resume.user_id, text)
+        except Exception:
+            # Text extraction succeeded and is worth keeping. A failure here degrades the
+            # result rather than destroying it, so it is logged and the parse still completes;
+            # re-uploading re-runs extraction.
+            logger.exception("parse_resume: skill extraction failed for resume %s", resume_id)
+            skill_count = 0
+
+        # Embedding is the expensive step (~200 MB of model, see ADR-0009) and it is best
+        # effort: a resume with text and skills but no vector still scores, just on skills
+        # alone. Failing the whole parse because the model could not load would throw away
+        # work that already succeeded.
+        try:
+            resume.embedding = embed_text(text)
+        except Exception:
+            logger.exception("parse_resume: embedding failed for resume %s", resume_id)
+
         resume.extracted_text = text
         resume.status = ParseStatus.COMPLETE
         resume.error_message = None
@@ -104,5 +134,95 @@ def parse_resume(self: Any, resume_id: str) -> str:
         # themselves — we keep the text we need, not the document the user handed us.
         resume.file_data = None
 
-        logger.info("parse_resume: resume %s complete, %d characters", resume_id, len(text))
+        logger.info(
+            "parse_resume: resume %s complete, %d characters, %d skills",
+            resume_id,
+            len(text),
+            skill_count,
+        )
+        return "complete"
+
+
+def _extract_skills(session: Session, user_id: uuid.UUID, text: str) -> int:
+    """Match the vocabulary against the text and record the results.
+
+    Synchronous, because this runs inside a Celery worker (ADR-0005). Uses the same models and
+    the same matcher as the API — only the session type differs.
+    """
+    skills = session.execute(select(Skill).options(selectinload(Skill.aliases))).scalars().all()
+    matcher = SkillMatcher.build(to_vocabulary(list(skills)))
+    found = matcher.find(text)
+    if not found:
+        return 0
+
+    # Skills the user has explicitly dismissed. Filtering them out here — rather than relying
+    # on the upsert's WHERE clause alone — keeps rejected suggestions from reappearing at all.
+    rejected = set(
+        session.execute(
+            select(UserSkill.skill_id).where(
+                UserSkill.user_id == user_id, UserSkill.status == SkillStatus.REJECTED
+            )
+        ).scalars()
+    )
+
+    rows = [
+        {
+            "user_id": user_id,
+            "skill_id": match.skill_id,
+            "source": SkillSource.EXTRACTED,
+            "status": SkillStatus.SUGGESTED,
+            "occurrences": min(match.occurrences, 32767),
+        }
+        for match in found
+        if match.skill_id not in rejected
+    ]
+    if not rows:
+        return 0
+
+    stmt = pg_insert(UserSkill).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[UserSkill.user_id, UserSkill.skill_id],
+        set_={"occurrences": stmt.excluded.occurrences},
+        # Re-uploading a resume must never silently undo a confirmation or a proficiency the
+        # user set by hand, so only untouched suggestions are refreshed.
+        where=UserSkill.status == SkillStatus.SUGGESTED,
+    )
+    session.execute(stmt)
+    return len(rows)
+
+
+@celery_app.task(name="jobs.embed", bind=True, max_retries=2, default_retry_delay=30)
+def embed_job(self: Any, job_id: str) -> str:
+    """Compute and store a job description's embedding.
+
+    A separate task from job creation because creation is synchronous and fast (skill matching
+    takes milliseconds) while embedding needs a 200 MB model. The job is fully usable for
+    skill-based scoring the moment it is created; the semantic component appears when this
+    finishes.
+
+    Idempotent: recomputing an embedding for the same text yields the same vector.
+    """
+    job_uuid = uuid.UUID(job_id)
+
+    with worker_session() as session:
+        job = session.get(Job, job_uuid)
+        if job is None:
+            logger.warning("embed_job: job %s no longer exists", job_id)
+            return "missing"
+
+        try:
+            # Title and description together, matching how skills are extracted, so the two
+            # signals describe the same text rather than subtly different documents.
+            job.embedding = embed_text(f"{job.title}\n{job.description}")
+        except SoftTimeLimitExceeded:
+            logger.error("embed_job: job %s exceeded the time limit", job_id)
+            return "timeout"
+        except Exception as exc:
+            logger.exception("embed_job: failed for job %s", job_id)
+            try:
+                raise self.retry(exc=exc) from exc
+            except self.MaxRetriesExceededError:
+                return "failed"
+
+        logger.info("embed_job: job %s embedded", job_id)
         return "complete"
