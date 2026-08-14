@@ -18,11 +18,15 @@ from app.core.config import get_settings
 from app.core.security import TokenError, decode_access_token
 from app.db.session import get_db
 from app.models.user import User, UserRole
+from app.repositories.job import JobRepository
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.resume import ResumeRepository
+from app.repositories.skill import SkillRepository, UserSkillRepository
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
+from app.services.job import JobService
 from app.services.resume import ResumeService
+from app.services.skill_profile import SkillProfileService
 from app.workers.dispatcher import CeleryTaskDispatcher
 
 # Annotated aliases keep route signatures readable. Without this, every handler needing a
@@ -92,6 +96,40 @@ def get_resume_service(
 
 
 ResumeServiceDep = Annotated[ResumeService, Depends(get_resume_service)]
+
+
+def get_skill_repository(session: DbSession) -> SkillRepository:
+    return SkillRepository(session)
+
+
+def get_user_skill_repository(session: DbSession) -> UserSkillRepository:
+    return UserSkillRepository(session)
+
+
+def get_skill_profile_service(
+    session: DbSession,
+    skills: Annotated[SkillRepository, Depends(get_skill_repository)],
+    user_skills: Annotated[UserSkillRepository, Depends(get_user_skill_repository)],
+) -> SkillProfileService:
+    return SkillProfileService(skills=skills, user_skills=user_skills, uow=session)
+
+
+SkillProfileServiceDep = Annotated[SkillProfileService, Depends(get_skill_profile_service)]
+
+
+def get_job_repository(session: DbSession) -> JobRepository:
+    return JobRepository(session)
+
+
+def get_job_service(
+    session: DbSession,
+    jobs: Annotated[JobRepository, Depends(get_job_repository)],
+    skills: Annotated[SkillRepository, Depends(get_skill_repository)],
+) -> JobService:
+    return JobService(jobs=jobs, skills=skills, uow=session)
+
+
+JobServiceDep = Annotated[JobService, Depends(get_job_service)]
 
 
 # --------------------------------------------------------------------------------------

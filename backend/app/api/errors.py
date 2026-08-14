@@ -19,8 +19,13 @@ from app.services.exceptions import (
     InactiveAccountError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
+    JobNotFoundError,
+    NotYourJobError,
+    RecruiterRoleRequiredError,
     RefreshTokenReuseDetectedError,
     ResumeNotFoundError,
+    SkillNotFoundError,
+    SkillNotInProfileError,
     TooManyPendingResumesError,
     UnsupportedFileTypeError,
 )
@@ -48,6 +53,13 @@ _STATUS_BY_ERROR: dict[type[DomainError], int] = {
     FileTooLargeError: status.HTTP_413_CONTENT_TOO_LARGE,
     ResumeNotFoundError: status.HTTP_404_NOT_FOUND,
     TooManyPendingResumesError: status.HTTP_409_CONFLICT,
+    # --- Skills ---
+    SkillNotFoundError: status.HTTP_404_NOT_FOUND,
+    SkillNotInProfileError: status.HTTP_404_NOT_FOUND,
+    # --- Jobs ---
+    JobNotFoundError: status.HTTP_404_NOT_FOUND,
+    NotYourJobError: status.HTTP_404_NOT_FOUND,
+    RecruiterRoleRequiredError: status.HTTP_403_FORBIDDEN,
 }
 
 _AUTH_STATUSES = {status.HTTP_401_UNAUTHORIZED}
