@@ -6,8 +6,9 @@ CareerGraph parses your resume, semantically matches it against real job descrip
 **skill-dependency graph** to compute the shortest learning path from what you know today to what the
 target role requires.
 
-**Status:** Backend complete through Phase 3 — auth, async resume parsing, skill extraction,
-semantic matching, and graph-based learning paths. Frontend is Phase 4. See the [roadmap](#roadmap).
+**Status:** Backend and frontend complete through Phase 4 — auth, async resume parsing, skill
+extraction, semantic matching, graph-based learning paths, and a Next.js dashboard. Security
+hardening and observability remain. See the [roadmap](#roadmap).
 
 <!-- Badges are added in Phase 1, once CI exists.
 [![CI](https://github.com/Mazharul75/careergraph/actions/workflows/ci.yml/badge.svg)](https://github.com/Mazharul75/careergraph/actions/workflows/ci.yml)
@@ -209,6 +210,18 @@ over a prerequisite DAG — see **[ADR-0010](docs/adr/0010-skill-graph-as-a-dag.
 > surfaces as a misleading "password authentication failed". Override with `POSTGRES_HOST_PORT`
 > and `REDIS_HOST_PORT` in `.env` if those clash too.
 
+### Running the frontend
+
+```bash
+cd frontend && cp .env.local.example .env.local && npm install
+```
+
+```bash
+npm run dev
+```
+
+Opens on http://localhost:3000. See [frontend/README.md](frontend/README.md).
+
 ### Running tests
 
 Tests run on the host against the containerised database, so only `db` needs to be up:
@@ -260,11 +273,11 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 | 2b | Skill vocabulary, extraction from resume text, jobs CRUD | ✅ Done |
 | 2c | Embeddings (fastembed) + pgvector similarity matching | ✅ Done |
 | 3 | NetworkX skill graph + shortest-path learning paths | ✅ Done |
-| 4 | Next.js dashboard: auth, match cards, skill-gap radar, path view | ⬜ Next |
+| 4 | Next.js dashboard: auth, match cards, skill-gap radar, path view | ✅ Done |
 | 2 | Resume upload + NLP parsing, embeddings, pgvector matching, Celery pipeline | ⬜ |
 | 3 | NetworkX skill-dependency graph + shortest-path recommendations | ⬜ |
 | 4 | Next.js dashboard: auth, match cards, skill-gap radar, learning-path view | ⬜ |
-| 5 | Rate limiting, input-validation pass, secrets audit, dependency scanning | ⬜ |
+| 5 | Rate limiting, input-validation pass, secrets audit, dependency scanning | ⬜ Next |
 | 6 | structlog, Sentry, health checks, CD pipeline, public deployment | ⬜ |
 | 7 | Docs polish, load test, demo script | ⬜ |
 
