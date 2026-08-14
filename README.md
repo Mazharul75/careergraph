@@ -283,6 +283,8 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 
 ## Documentation
 
+- **[Project state](docs/PROJECT_STATE.md)** — what is built, what is next, and the accumulated
+  gotchas. Start here.
 - [Product requirements](docs/PRD.md) — the problem, users, scope, and success criteria
 - [Architecture](docs/architecture.md) — layering, request lifecycle, async design
 - [Database design](docs/database.md) — ERD, normalization notes, migration conventions
