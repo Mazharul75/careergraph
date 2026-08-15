@@ -25,7 +25,10 @@ router = APIRouter()
 )
 async def list_skills(
     profile: SkillProfileServiceDep,
-    category: str | None = Query(default=None, description="Filter by category"),
+    # Bounded even though it is only compared for equality: this is an unauthenticated
+    # endpoint, and "no input without a length limit" is cheaper as a blanket rule than as
+    # a per-case judgement call.
+    category: str | None = Query(default=None, max_length=50, description="Filter by category"),
 ) -> list[SkillResponse]:
     """Unauthenticated: the vocabulary is reference data, not user data.
 

@@ -4,7 +4,7 @@ The standards this project holds itself to. Updated at the end of every phase.
 
 **Legend:** ✅ done · 🟡 partially done · ⬜ not started
 
-_Last updated: end of Phase 4_
+_Last updated: end of Phase 5_
 
 | # | Requirement | Status | Where it lives / when |
 |---|---|---|---|
@@ -20,7 +20,7 @@ _Last updated: end of Phase 4_
 | 10 | CI pipeline: lint + test on every push | ✅ | ruff, mypy, pytest, migration reversibility, Docker build |
 | 11 | CD pipeline: auto-deploy on merge to `main` | 🟡 | `.github/workflows/cd.yml` written and gated on CI; goes live once the Render hook is set |
 | 12 | A real, working deployment with a public link | 🟡 | `render.yaml` blueprint committed; needs the manual account setup below |
-| 13 | Security basics: input validation, rate limiting, env-var secrets, dep scanning | 🟡 | Validation, `SecretStr`, production secret-strength check, non-root container, no plaintext credentials stored. **Rate limiting and Dependabot in Phase 5** |
+| 13 | Security basics: input validation, rate limiting, env-var secrets, dep scanning | ✅ | Per-IP rate limiting on credential endpoints ([ADR-0011](adr/0011-hand-rolled-redis-rate-limiting.md), verified live: 11th login attempt → 429 + Retry-After), Dependabot across uv/npm/actions/docker, secrets audit clean, full posture in [security.md](security.md) |
 | 14 | Monitoring: structured logs, error tracking, health checks | 🟡 | `/health` + `/health/ready`. structlog + Sentry in Phase 6 |
 | 15 | Docs: README with diagram, setup instructions, ADR log | ✅ | 7 ADRs, PRD, architecture, database docs |
 | 16 | A UI that looks like a product, not a template | ✅ | Next.js 16 dashboard with a deliberate token palette, a small primitive set, skill-gap radar, and the learning path drawn as an ordered spine |

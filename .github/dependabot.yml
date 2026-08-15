@@ -1,0 +1,53 @@
+# Dependabot — automated dependency scanning and update PRs.
+#
+# **Dependabot** is GitHub's built-in dependency watcher: it reads the lockfiles in this
+# repository, compares every pinned version against known-vulnerable releases (the GitHub
+# Advisory Database) and against newer versions, and opens pull requests to update them.
+# Think of it as a colleague whose only job is reading security bulletins — the CVE feed —
+# so you don't have to. Because its PRs run through the same CI as any human's, an update
+# that breaks the tests is caught before it can merge.
+#
+# Grouping matters: without it, a routine week can produce fifteen single-dependency PRs,
+# and the noise trains you to ignore them — the worst outcome for a security tool. Minor
+# and patch bumps are grouped into one PR per ecosystem; majors stay separate because they
+# are the ones that need actual reading.
+
+version: 2
+updates:
+  # Backend: uv reads pyproject.toml + uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      python-minor-and-patch:
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 5
+
+  # Frontend: npm reads package.json + package-lock.json.
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      npm-minor-and-patch:
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 5
+
+  # The CI/CD workflows themselves: actions are dependencies too, and a compromised action
+  # runs with whatever permissions the workflow grants it.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+
+  # Base images in the backend Dockerfile (python:3.12-slim etc.). A vulnerability in the
+  # base image ships to production no matter how clean the application code is.
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"

@@ -115,6 +115,21 @@ class Settings(BaseSettings):
     # reliably hand freed arenas back, and ONNX Runtime allocates natively. See ADR-0009.
     celery_max_tasks_per_child: int = 1
 
+    # --- Rate limiting ---------------------------------------------------------------
+    # Per-IP fixed windows on the unauthenticated credential endpoints (see ADR-0011).
+    # The numbers are deliberately generous for humans and hopeless for brute force: nobody
+    # mistypes a password ten times in five minutes, but an attacker needs millions of tries.
+    rate_limit_enabled: bool = True
+    rate_limit_login: int = 10
+    rate_limit_login_window_seconds: int = 300
+    # Registration is limited per hour: account flooding is a slow-burn abuse, not a burst.
+    rate_limit_register: int = 20
+    rate_limit_register_window_seconds: int = 3600
+    # Refresh fires automatically from clients, so its ceiling is much higher — a legitimate
+    # SPA refreshes once per access-token expiry, i.e. a few times an hour.
+    rate_limit_refresh: int = 60
+    rate_limit_refresh_window_seconds: int = 60
+
     # --- Uploads ---------------------------------------------------------------------
     # 5 MB. Resumes are a page or two; anything larger is a mistake or an attack, and an
     # unbounded upload is a trivial way to exhaust memory and disk.
