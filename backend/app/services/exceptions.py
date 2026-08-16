@@ -73,6 +73,26 @@ class RecruiterRoleRequiredError(DomainError):
     message = "Only recruiter accounts can publish public job postings."
 
 
+class ActiveGoalExistsError(DomainError):
+    """One target at a time.
+
+    Not a technical limit — a product decision. The whole value of a goal is that it focuses
+    attention; a user tracking six targets at once is back to an unordered pile.
+    """
+
+    message = "You already have an active goal. Complete or abandon it before setting another."
+
+
+class GoalNotFoundError(DomainError):
+    """Also raised for a goal belonging to someone else, so ids cannot be enumerated."""
+
+    message = "Goal not found."
+
+
+class GoalNotAchievedError(DomainError):
+    message = "You have not reached this goal yet. Keep going."
+
+
 class SkillNotFoundError(DomainError):
     message = "No such skill."
 

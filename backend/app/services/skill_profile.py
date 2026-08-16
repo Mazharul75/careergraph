@@ -36,18 +36,53 @@ class SkillProfileService:
     async def list_vocabulary(self) -> list[Skill]:
         return await self._skills.list_all()
 
-    async def get_profile(self, *, user_id: uuid.UUID) -> tuple[list[UserSkill], list[UserSkill]]:
-        """Return (confirmed, suggested).
+    async def get_profile(
+        self, *, user_id: uuid.UUID
+    ) -> tuple[list[UserSkill], list[UserSkill], list[UserSkill]]:
+        """Return (confirmed, suggested, learning).
 
         Rejected entries are excluded: they are tombstones that stop a dismissed suggestion
         reappearing after the next upload, not something to show the user again.
         """
         entries = await self._user_skills.list_for_user(
-            user_id, statuses=(SkillStatus.CONFIRMED, SkillStatus.SUGGESTED)
+            user_id,
+            statuses=(SkillStatus.CONFIRMED, SkillStatus.SUGGESTED, SkillStatus.LEARNING),
         )
         confirmed = [e for e in entries if e.status is SkillStatus.CONFIRMED]
         suggested = [e for e in entries if e.status is SkillStatus.SUGGESTED]
-        return confirmed, suggested
+        learning = [e for e in entries if e.status is SkillStatus.LEARNING]
+        return confirmed, suggested, learning
+
+    async def start_learning(self, *, user_id: uuid.UUID, skill_id: uuid.UUID) -> UserSkill:
+        """Mark a skill as being worked on.
+
+        Needs its own method rather than reusing ``update_skill``, because the whole point is
+        that the user does **not** have this skill — so there is usually no row to update. This
+        is the entry point to the progress loop: the gap list on a goal is exactly the set of
+        skills with no row at all.
+
+        A skill previously rejected can be picked up: "I don't have this" and "I am learning
+        this" are perfectly compatible, and refusing would strand the user with no way back.
+        """
+        if await self._skills.get(skill_id) is None:
+            raise SkillNotFoundError
+
+        existing = await self._user_skills.get(user_id, skill_id)
+        if existing is not None:
+            existing.status = SkillStatus.LEARNING
+        else:
+            self._user_skills.add(
+                UserSkill(
+                    user_id=user_id,
+                    skill_id=skill_id,
+                    source=SkillSource.MANUAL,
+                    status=SkillStatus.LEARNING,
+                    occurrences=0,  # never seen in a document — this is an intention
+                )
+            )
+
+        await self._uow.commit()
+        return await self._reload(user_id, skill_id)
 
     async def add_skill(
         self, *, user_id: uuid.UUID, skill_id: uuid.UUID, proficiency: int | None = None

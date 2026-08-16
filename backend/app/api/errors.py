@@ -12,10 +12,13 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.services.exceptions import (
+    ActiveGoalExistsError,
     DomainError,
     EmailAlreadyRegisteredError,
     EmptyFileError,
     FileTooLargeError,
+    GoalNotAchievedError,
+    GoalNotFoundError,
     InactiveAccountError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
@@ -60,6 +63,12 @@ _STATUS_BY_ERROR: dict[type[DomainError], int] = {
     JobNotFoundError: status.HTTP_404_NOT_FOUND,
     NotYourJobError: status.HTTP_404_NOT_FOUND,
     RecruiterRoleRequiredError: status.HTTP_403_FORBIDDEN,
+    # --- Goals ---
+    GoalNotFoundError: status.HTTP_404_NOT_FOUND,
+    # 409, not 400: the request is perfectly valid, it just conflicts with state that already
+    # exists. The client's fix is to abandon the current goal, not to correct its payload.
+    ActiveGoalExistsError: status.HTTP_409_CONFLICT,
+    GoalNotAchievedError: status.HTTP_409_CONFLICT,
 }
 
 _AUTH_STATUSES = {status.HTTP_401_UNAUTHORIZED}

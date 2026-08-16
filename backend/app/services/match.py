@@ -46,9 +46,10 @@ class MatchService:
         # Suggested skills count, not just confirmed ones. A user who has uploaded a resume but
         # not yet reviewed the suggestions should still get a meaningful score — requiring
         # review first would show everyone 0% on their first visit, which reads as broken.
-        # Rejected skills are excluded, because rejection is an explicit "I do not have this".
+        # Rejected skills are excluded, because rejection is an explicit "I do not have this",
+        # and so are skills being *learned* — see SkillStatus.counts_as_held.
         entries = await self._user_skills.list_for_user(
-            user.id, statuses=(SkillStatus.CONFIRMED, SkillStatus.SUGGESTED)
+            user.id, statuses=SkillStatus.counts_as_held()
         )
         user_skill_ids = frozenset(entry.skill_id for entry in entries)
 

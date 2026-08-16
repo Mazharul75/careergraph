@@ -3,10 +3,23 @@
 > **This is the handoff document.** Read it before your first reply in any session; update it
 > before writing any phase wrap-up. If it is stale, the next session starts blind.
 
-**Last updated:** end of Phase 7 (final phase), 2026-08-16
-**Branch:** `feat/skill-extraction` — **356 tests passing**, all phases code-complete
-**Next:** nothing left to build. What remains is manual (§6): merge to `main`, apply the Render
-blueprint, set the two GitHub/Render secrets, deploy the frontend to Vercel.
+**Last updated:** Phase 8a (career goals backend), 2026-08-16
+**Branch:** `feat/skill-extraction` — **385 tests passing**
+**Deployed:** API at `https://careergraph-api-f9n2.onrender.com`, frontend at
+`https://careergraph-fawn.vercel.app`. CD is green.
+
+**Why there are phases after 7.** The engineering was complete; the *product* was not. Using
+the deployed app surfaced three real gaps, all confirmed against the code:
+
+1. **The recruiter role is a dead end.** No candidate-ranking endpoint exists — `models/job.py`
+   still says "candidate-ranking target in Phase 2c". A recruiter can post a job and see only a
+   match score against *their own* skills, which is meaningless.
+2. **Four authenticated pages**, and the loop never closes: the app produced a *report*, not a
+   journey. Nothing a user did could change any number, so there was no reason to return.
+3. **No admin role exists at all** — `UserRole` is `job_seeker | recruiter`.
+
+**Next:** Phase 8b (journey-loop UI), then 9 (recruiter candidate ranking), 10 (admin role +
+dashboard), 11 (depth pages + UX pass).
 
 ---
 
@@ -118,6 +131,7 @@ database; integration need Postgres).
 | Observability | `core/logging.py` (structlog), `api/middleware.py` (request IDs), Sentry init in `main.py` |
 | Maintenance | `workers/maintenance.py` — beat-scheduled token purge + stuck-resume requeue |
 | Delivery | `scripts/load_test.py`, `docs/DEMO.md`, `docs/INTERVIEW.md` |
+| Goals (Phase 8a) | `models/career_goal.py`, `repositories/career_goal.py`, `services/goal.py`, `api/v1/goals.py`, migration `0008` |
 
 **API surface**
 
@@ -166,6 +180,7 @@ a change of mind means a new ADR superseding the old.
 | 0010 | Skill graph as DAG | Topological sort, not shortest path — a plan is not a path |
 | 0011 | Hand-rolled Redis rate limiting | ~40 lines beats a dependency; fixed window; **fails open** when Redis is down — availability of login over strictness, the outage surfaces via `/health/ready` |
 | 0012 | Embedding as its own task | Commit the valuable work *before* the process-fatal work. `try/except` cannot catch an OOM kill |
+| 0013 | Career goals + the `learning` state | A report has no memory, so nothing a user does can pay off. Freezing a baseline score adds the time axis. `learning` deliberately does **not** count toward the score — only completion moves it |
 
 ---
 

@@ -11,6 +11,7 @@ from app.schemas.skill import (
     AddSkillRequest,
     SkillProfileResponse,
     SkillResponse,
+    StartLearningRequest,
     UpdateSkillRequest,
     UserSkillResponse,
 )
@@ -55,13 +56,35 @@ async def get_my_profile(
     keeping them apart from confirmed skills is what makes the correction step obvious rather
     than something the user has to go looking for.
     """
-    confirmed, suggested = await profile.get_profile(user_id=current_user.id)
+    confirmed, suggested, learning = await profile.get_profile(user_id=current_user.id)
     return SkillProfileResponse(
         confirmed=[UserSkillResponse.model_validate(e) for e in confirmed],
         suggested=[UserSkillResponse.model_validate(e) for e in suggested],
+        learning=[UserSkillResponse.model_validate(e) for e in learning],
         total_confirmed=len(confirmed),
         total_suggested=len(suggested),
+        total_learning=len(learning),
     )
+
+
+@router.post(
+    "/me/learning",
+    response_model=UserSkillResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Start learning a skill you do not have yet",
+    responses={404: {"description": "No such skill in the vocabulary"}},
+)
+async def start_learning(
+    payload: StartLearningRequest, current_user: CurrentUser, profile: SkillProfileServiceDep
+) -> UserSkillResponse:
+    """Begin working on a gap.
+
+    Separate from ``POST /me`` because that one asserts "I already have this skill" and counts
+    toward the match score immediately. This one asserts the opposite, and deliberately does
+    **not** move the score — that only happens when the skill is later confirmed as learned.
+    """
+    entry = await profile.start_learning(user_id=current_user.id, skill_id=payload.skill_id)
+    return UserSkillResponse.model_validate(entry)
 
 
 @router.post(
