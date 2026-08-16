@@ -271,7 +271,7 @@ requires-dist = [
     { name = "honcho", specifier = ">=2.0.0" },
     { name = "networkx", specifier = ">=3.4" },
     { name = "pgvector", specifier = ">=0.3.6" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.3" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.10.4" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "pyjwt", specifier = ">=2.10.1" },
