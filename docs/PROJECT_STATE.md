@@ -240,8 +240,8 @@ environment locally): **the app boots fine**; the workflow exits on its own guar
 2. **`REDIS_URL` is not set on Render.** Create a free **Key Value** instance, paste its internal
    connection string. Without it uploads are accepted and never processed —
    `/health/ready` now reports `degraded` instead of lying about it.
-3. **Check the hostname.** CD polls `https://careergraph-api.onrender.com/health`; if the service
-   name differs, update `cd.yml` and `render.yaml`.
+3. **Hostname confirmed.** The real service URL is `https://careergraph-api-f9n2.onrender.com`
+   (Render appended `-f9n2` because the bare name was taken); `cd.yml` polls it.
 4. **Vercel** — not yet deployed. Needs `NEXT_PUBLIC_API_URL`, and the Render `CORS_ORIGINS` must
    then be set to the Vercel URL.
 5. **`SENTRY_DSN` (optional).** Create a free Sentry project, paste the DSN into the Render
