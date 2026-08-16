@@ -18,12 +18,14 @@ from app.core.config import get_settings
 from app.core.security import TokenError, decode_access_token
 from app.db.session import get_db
 from app.models.user import User, UserRole
+from app.repositories.career_goal import CareerGoalRepository
 from app.repositories.job import JobRepository
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.resume import ResumeRepository
 from app.repositories.skill import SkillRepository, UserSkillRepository
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService
+from app.services.goal import GoalService
 from app.services.job import JobService
 from app.services.learning_path import LearningPathService
 from app.services.match import MatchService
@@ -144,6 +146,31 @@ def get_match_service(
 
 
 MatchServiceDep = Annotated[MatchService, Depends(get_match_service)]
+
+
+def get_career_goal_repository(session: DbSession) -> CareerGoalRepository:
+    return CareerGoalRepository(session)
+
+
+def get_goal_service(
+    session: DbSession,
+    goals: Annotated[CareerGoalRepository, Depends(get_career_goal_repository)],
+    jobs: Annotated[JobRepository, Depends(get_job_repository)],
+    user_skills: Annotated[UserSkillRepository, Depends(get_user_skill_repository)],
+    matcher: MatchServiceDep,
+) -> GoalService:
+    """Composed on top of MatchService rather than duplicating its scoring.
+
+    A goal *is* a match measured twice, so re-deriving the score here would guarantee the two
+    numbers eventually disagree — and a progress bar that contradicts the job page is worse
+    than no progress bar.
+    """
+    return GoalService(
+        goals=goals, jobs=jobs, user_skills=user_skills, matcher=matcher, uow=session
+    )
+
+
+GoalServiceDep = Annotated[GoalService, Depends(get_goal_service)]
 
 
 def get_learning_path_service(

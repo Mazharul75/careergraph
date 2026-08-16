@@ -33,6 +33,19 @@ class SkillStatus(enum.StrEnum):
     SUGGESTED = "suggested"  # extracted, awaiting confirmation
     CONFIRMED = "confirmed"  # the user agreed, or added it manually
     REJECTED = "rejected"  # the user said no — do not suggest again
+    LEARNING = "learning"  # the user does not have it yet and is working on it
+
+    @classmethod
+    def counts_as_held(cls) -> tuple[SkillStatus, ...]:
+        """The statuses that mean "this person has this skill" for scoring purposes.
+
+        ``LEARNING`` is deliberately excluded, and that exclusion is the entire mechanic of
+        the progress loop: a skill in progress does not yet count, so moving it to
+        ``CONFIRMED`` when it is learned is what makes the match score visibly rise. If
+        learning counted, the score would jump the moment a user *declared an intention*,
+        which would make the number meaningless.
+        """
+        return (cls.CONFIRMED, cls.SUGGESTED)
 
 
 class UserSkill(Base, TimestampMixin):

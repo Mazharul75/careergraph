@@ -39,8 +39,17 @@ class UserSkillResponse(BaseModel):
 class SkillProfileResponse(BaseModel):
     confirmed: list[UserSkillResponse]
     suggested: list[UserSkillResponse]
+    # Skills the user is actively working on. Kept as its own list rather than folded into
+    # `suggested` because they mean opposite things: a suggestion is "we think you have this",
+    # a learning entry is "you do not have this yet, and you are on it".
+    learning: list[UserSkillResponse]
     total_confirmed: int
     total_suggested: int
+    total_learning: int
+
+
+class StartLearningRequest(BaseModel):
+    skill_id: uuid.UUID
 
 
 class AddSkillRequest(BaseModel):
