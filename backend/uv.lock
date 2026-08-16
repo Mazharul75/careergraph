@@ -272,7 +272,7 @@ requires-dist = [
     { name = "networkx", specifier = ">=3.4" },
     { name = "pgvector", specifier = ">=0.3.6" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.3" },
-    { name = "pydantic", extras = ["email"], specifier = ">=2.10.4" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pypdf", specifier = ">=5.1.0" },
