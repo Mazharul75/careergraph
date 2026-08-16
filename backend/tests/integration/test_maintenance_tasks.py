@@ -150,6 +150,34 @@ class TestRequeueStuckResumes:
         assert resume is not None
         assert resume.status is ParseStatus.PENDING  # the re-run parse will advance it
 
+    def test_requeues_a_resume_stranded_mid_parse(
+        self, owner: uuid.UUID, enqueued: list[str]
+    ) -> None:
+        """A worker killed mid-parse leaves `processing`, not `pending`.
+
+        This is the real production failure: the task set the status, committed, and the
+        process was then killed loading the embedding model. Redis will not redeliver the
+        message until its visibility timeout elapses, so the sweeper is what rescues it.
+        """
+        stranded = _make_resume(
+            owner, status=ParseStatus.PROCESSING, age_minutes=60, file_data=b"x"
+        )
+
+        count = requeue_stuck_resumes()
+
+        assert count == 1
+        assert enqueued == [str(stranded)]
+
+    def test_ignores_a_parse_that_is_merely_slow(
+        self, owner: uuid.UUID, enqueued: list[str]
+    ) -> None:
+        """The cutoff is far longer than the task's hard time limit, so a running parse is
+        never yanked out from under a healthy worker."""
+        _make_resume(owner, status=ParseStatus.PROCESSING, age_minutes=2, file_data=b"x")
+
+        assert requeue_stuck_resumes() == 0
+        assert enqueued == []
+
     def test_ignores_fresh_pending(self, owner: uuid.UUID, enqueued: list[str]) -> None:
         _make_resume(owner, status=ParseStatus.PENDING, age_minutes=1, file_data=b"x")
 

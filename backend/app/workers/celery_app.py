@@ -79,6 +79,18 @@ celery_app.conf.update(
     # The worker and Redis start at the same moment in Docker and on Render, so the first
     # connection attempt often loses the race. Retrying on startup avoids a crash loop.
     broker_connection_retry_on_startup=True,
+    broker_transport_options={
+        # Redis has no native acknowledgement, so Celery emulates `task_acks_late` with a
+        # timer: a delivered-but-unacknowledged message is handed to another worker only
+        # after this many seconds. The default is **one hour**, which means a worker killed
+        # mid-task leaves its job invisible for an hour — long enough to look like a
+        # permanent hang rather than a retry.
+        #
+        # Ten minutes instead. The floor is the hard time limit (180 s): set this below the
+        # longest a task may legitimately run and a still-running task gets handed to a
+        # second worker and executed twice.
+        "visibility_timeout": 600,
+    },
     timezone="UTC",
     enable_utc=True,
     # --- Periodic maintenance (celery beat, embedded via the worker's -B flag) -----------

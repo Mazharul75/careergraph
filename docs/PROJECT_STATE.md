@@ -165,6 +165,7 @@ a change of mind means a new ADR superseding the old.
 | 0009 | fastembed ONNX | Measured **200 MB** peak; never import at module scope; recycle child per task |
 | 0010 | Skill graph as DAG | Topological sort, not shortest path — a plan is not a path |
 | 0011 | Hand-rolled Redis rate limiting | ~40 lines beats a dependency; fixed window; **fails open** when Redis is down — availability of login over strictness, the outage surfaces via `/health/ready` |
+| 0012 | Embedding as its own task | Commit the valuable work *before* the process-fatal work. `try/except` cannot catch an OOM kill |
 
 ---
 
@@ -209,6 +210,37 @@ within six steps from scratch.
 - Refresh tokens are single-use; concurrent 401s each calling `/auth/refresh` would trip the
   backend's own reuse detection and sign the user out. `api.ts` uses a **single-flight** guard.
 - eslint-config-next v16 ships flat configs — `FlatCompat` crashes.
+
+### The first real production failure (2026-08-16) — read this one
+The first live resume upload hung forever. Four separate things had to be true, and the
+combination is worth understanding because each part looked correct on its own.
+
+1. **The worker was OOM-killed loading the embedding model.** 512 MB holds the API (~150 MB)
+   plus the worker (~100 MB); the ~200 MB model does not fit on top. Diagnostic signature:
+   Celery's `[tasks]` banner (`. resumes.parse`) prints **only at worker startup**, so seeing
+   it a second time means the worker restarted. Task received 13:37:43, banner again 13:38:38,
+   no `succeeded` line — killed 55 s in, well under the 120 s soft timeout, so not a timeout.
+2. **An OOM kill is not catchable.** `embed_text` was wrapped in `try/except` to make it best
+   effort, but the process is killed outright — the `except` never runs, and the whole parse
+   dies with it. *Wrapping something in try/except does not make it best-effort if the failure
+   mode is the process dying.*
+3. **Redis does not redeliver for an hour.** Redis has no native ack, so `task_acks_late` is
+   emulated with a **visibility timeout, default 3600 s**. A killed worker's message stays
+   invisible for an hour — indistinguishable from a permanent hang. Now set to 600 s, which
+   must stay above the 180 s hard time limit or a running task gets executed twice.
+4. **The sweeper walked straight past it.** `requeue_stuck_resumes` only looked at `pending`,
+   but `parse_resume` sets `processing` and commits *before* the heavy work. The exact failure
+   it was built to repair, in the one state it did not check. Now covers both.
+
+**The fix (ADR-0012):** embedding moved into its own `resumes.embed` task, enqueued only after
+the parse transaction commits. The resume reaches `complete` with text and skills before the
+memory-hungry step is even scheduled, so an OOM there costs only the vector. Verified live:
+parse 1.29 s, embed 18.4 s separately, final row `complete | text | vector | bytes dropped`.
+
+**Also corrected:** `--max-tasks-per-child` was 10 in `Procfile` and `render.yaml` while
+`config.py` said 1 and cited ADR-0009's reasoning for it. The CLI flag wins, so production
+held the 200 MB model across ten tasks. Now 1 everywhere. *A setting documented in one place
+and overridden in another is worse than either value.*
 
 ### Observability & workers (Phase 6)
 - **Another compose project can steal port 5433.** Integration tests suddenly failed with
