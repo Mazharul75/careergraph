@@ -6,13 +6,12 @@ CareerGraph parses your resume, semantically matches it against real job descrip
 **skill-dependency graph** to compute the shortest learning path from what you know today to what the
 target role requires.
 
-**Status:** Backend and frontend complete through Phase 4 — auth, async resume parsing, skill
-extraction, semantic matching, graph-based learning paths, and a Next.js dashboard. Security
-hardening and observability remain. See the [roadmap](#roadmap).
+**Status:** Feature-complete — auth with refresh-token rotation, async resume parsing, skill
+extraction, semantic matching, graph-based learning paths, a Next.js dashboard, rate limiting,
+structured logging with request IDs, and background maintenance sweepers. 356 backend tests.
+See the [roadmap](#roadmap).
 
-<!-- Badges are added in Phase 1, once CI exists.
 [![CI](https://github.com/Mazharul75/careergraph/actions/workflows/ci.yml/badge.svg)](https://github.com/Mazharul75/careergraph/actions/workflows/ci.yml)
--->
 
 ---
 
@@ -274,12 +273,12 @@ Feature branches → pull request → CI must pass → merge to `main`. Commit m
 | 2c | Embeddings (fastembed) + pgvector similarity matching | ✅ Done |
 | 3 | NetworkX skill graph + shortest-path learning paths | ✅ Done |
 | 4 | Next.js dashboard: auth, match cards, skill-gap radar, path view | ✅ Done |
-| 2 | Resume upload + NLP parsing, embeddings, pgvector matching, Celery pipeline | ⬜ |
-| 3 | NetworkX skill-dependency graph + shortest-path recommendations | ⬜ |
-| 4 | Next.js dashboard: auth, match cards, skill-gap radar, learning-path view | ⬜ |
-| 5 | Rate limiting, input-validation pass, secrets audit, dependency scanning | ⬜ Next |
-| 6 | structlog, Sentry, health checks, CD pipeline, public deployment | ⬜ |
-| 7 | Docs polish, load test, demo script | ⬜ |
+| 5 | Rate limiting, input-validation pass, secrets audit, dependency scanning | ✅ Done |
+| 6 | structlog + request IDs, Sentry, maintenance sweepers (celery beat) | ✅ Done |
+| 7 | Docs polish, load test, demo script, interview prep | ✅ Done |
+
+The one remaining manual step is the public deployment itself: applying `render.yaml` in the
+Render dashboard and setting the CD deploy-hook secret. The pipeline is built and green.
 
 ## Documentation
 

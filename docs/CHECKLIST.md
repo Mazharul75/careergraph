@@ -4,7 +4,8 @@ The standards this project holds itself to. Updated at the end of every phase.
 
 **Legend:** ✅ done · 🟡 partially done · ⬜ not started
 
-_Last updated: end of Phase 4_
+_Last updated: end of Phase 7 — every requirement is ✅ except the two waiting on manual
+account setup (11, 12)._
 
 | # | Requirement | Status | Where it lives / when |
 |---|---|---|---|
@@ -16,14 +17,31 @@ _Last updated: end of Phase 4_
 | 6 | Authentication + authorization (JWT, roles) | ✅ | Argon2id, JWT access tokens, opaque rotating refresh tokens with reuse detection, `require_role` |
 | 7 | REST API with OpenAPI/Swagger docs | ✅ | All five auth routes documented with response codes |
 | 8 | Real git workflow: feature branches, PRs, conventional commits | ✅ | `main` protected; CI is now a **required** status check, so red cannot merge |
-| 9 | Automated tests written alongside each feature | ✅ | 185 tests. The Celery task is executed for real against the database, not mocked |
+| 9 | Automated tests written alongside each feature | ✅ | 356 tests. The Celery tasks and the maintenance sweepers are executed for real against the database, not mocked |
 | 10 | CI pipeline: lint + test on every push | ✅ | ruff, mypy, pytest, migration reversibility, Docker build |
 | 11 | CD pipeline: auto-deploy on merge to `main` | 🟡 | `.github/workflows/cd.yml` written and gated on CI; goes live once the Render hook is set |
 | 12 | A real, working deployment with a public link | 🟡 | `render.yaml` blueprint committed; needs the manual account setup below |
-| 13 | Security basics: input validation, rate limiting, env-var secrets, dep scanning | 🟡 | Validation, `SecretStr`, production secret-strength check, non-root container, no plaintext credentials stored. **Rate limiting and Dependabot in Phase 5** |
-| 14 | Monitoring: structured logs, error tracking, health checks | 🟡 | `/health` + `/health/ready`. structlog + Sentry in Phase 6 |
-| 15 | Docs: README with diagram, setup instructions, ADR log | ✅ | 7 ADRs, PRD, architecture, database docs |
+| 13 | Security basics: input validation, rate limiting, env-var secrets, dep scanning | ✅ | Per-IP rate limiting on credential endpoints ([ADR-0011](adr/0011-hand-rolled-redis-rate-limiting.md), verified live: 11th login attempt → 429 + Retry-After), Dependabot across uv/npm/actions/docker, secrets audit clean, full posture in [security.md](security.md) |
+| 14 | Monitoring: structured logs, error tracking, health checks | ✅ | structlog (JSON in production, console locally) with per-request `X-Request-ID` correlation; Sentry gated on `SENTRY_DSN`, no PII; `/health` + `/health/ready`; beat-scheduled sweepers repair token buildup and stuck resumes |
+| 15 | Docs: README with diagram, setup instructions, ADR log | ✅ | 11 ADRs, PRD, architecture, database, security docs, plus [DEMO.md](DEMO.md) and [INTERVIEW.md](INTERVIEW.md) |
 | 16 | A UI that looks like a product, not a template | ✅ | Next.js 16 dashboard with a deliberate token palette, a small primitive set, skill-gap radar, and the learning path drawn as an ordered spine |
+
+## Phase 6–7 summary
+
+**Newly complete:** 14 (monitoring). **Extended:** 9 (346 → 356 tests), 15 (demo + interview docs).
+
+### Verified, not just written
+
+- structlog rendering confirmed in both modes: colored console lines locally, and
+  `{"request_id": "abc123", "event": "hello", "level": "info", ...}` JSON when
+  `ENVIRONMENT=production` — run inside the real container.
+- `X-Request-ID` returned on every response (including 401s) and stamped on every log line of
+  that request; health-probe requests deliberately excluded from the access log.
+- Celery beat started inside the live worker; `maintenance.purge_expired_refresh_tokens` was
+  triggered through the real broker and succeeded.
+- Load test against the live stack, 200 requests × 10 concurrent per endpoint, **zero errors**:
+  `/health` p50 134 ms; authenticated list endpoints p50 140–160 ms (Docker-on-Windows dev box
+  — the numbers demonstrate stability under concurrency, not capacity).
 
 ## Phase 2a summary
 

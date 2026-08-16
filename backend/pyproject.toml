@@ -38,6 +38,8 @@ dependencies = [
     # --- Phase 3: skill graph ---
     # In-process graph algorithms. See ADR-0002 for why not Neo4j.
     "networkx>=3.4",
+    "structlog>=26.1.0",
+    "sentry-sdk[fastapi]>=2.68.0",
 ]
 
 [dependency-groups]

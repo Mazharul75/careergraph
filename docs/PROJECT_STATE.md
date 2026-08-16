@@ -3,9 +3,10 @@
 > **This is the handoff document.** Read it before your first reply in any session; update it
 > before writing any phase wrap-up. If it is stale, the next session starts blind.
 
-**Last updated:** end of Phase 4 (frontend), 2026-08-15
-**Branch:** `feat/skill-extraction` — working tree clean, 333 tests passing
-**Next:** Phase 5 — rate limiting, input-validation pass, secrets audit, Dependabot, security write-up
+**Last updated:** end of Phase 7 (final phase), 2026-08-16
+**Branch:** `feat/skill-extraction` — **356 tests passing**, all phases code-complete
+**Next:** nothing left to build. What remains is manual (§6): merge to `main`, apply the Render
+blueprint, set the two GitHub/Render secrets, deploy the frontend to Vercel.
 
 ---
 
@@ -47,10 +48,20 @@ mindmap
       Single-flight token refresh
       Skill-gap radar
       Learning path as ordered spine
+    Phase 5 Security
+      Redis rate limiting, fails open
+      Bounded inputs everywhere
+      Dependabot, security.md
+    Phase 6 Observability
+      structlog JSON + request IDs
+      Sentry, errors only, no PII
+      Beat sweepers: tokens, stuck resumes
+    Phase 7 Delivery
+      Load test script + numbers
+      DEMO.md five-minute script
+      INTERVIEW.md Q&A
     Remaining
-      Phase 5 Security hardening
-      Phase 6 Observability + live deploy
-      Phase 7 Docs, load test, demo script
+      Manual deploy steps only
 ```
 
 **What it does, in one line:** parses a resume, scores it against a job description using skill
@@ -75,24 +86,24 @@ the job text. That is `nx.ancestors()` over the graph, and no keyword matcher ca
 | 2c | fastembed embeddings, pgvector, match scoring | ✅ committed on `feat/skill-extraction` |
 | 3 | Skill graph DAG, learning paths | ✅ committed on `feat/skill-extraction` |
 | 4 | Next.js frontend | ✅ committed on `feat/skill-extraction` |
-| **5** | **Rate limiting, validation pass, secrets audit, Dependabot** | ⬜ **next** |
-| 6 | structlog, Sentry, CD green, live deploy | ⬜ |
-| 7 | Docs polish, load test, demo script, interview prep | ⬜ |
+| 5 | Rate limiting (ADR-0011), validation pass, secrets audit, Dependabot, security.md | ✅ committed on `feat/skill-extraction` |
+| 6 | structlog + request IDs, Sentry, beat sweepers, CD sanity | ✅ committed on `feat/skill-extraction` |
+| 7 | README/roadmap polish, load test, DEMO.md, INTERVIEW.md | ✅ committed on `feat/skill-extraction` |
 
 ### Requirements checklist (his 16)
 
 ✅ 1 architecture · 2 layering · 3 design patterns · 4 stateless+workers · 5 DB design ·
-6 auth · 7 OpenAPI · 8 git workflow · 9 tests · 10 CI · 15 docs · **16 UI**
+6 auth · 7 OpenAPI · 8 git workflow · 9 tests · 10 CI · **13 security** · **14 monitoring** ·
+15 docs · 16 UI
 
-🟡 **11 CD** and **12 live deploy** — blocked on manual steps (§6)
-🟡 **13 security** — rate limiting + Dependabot = Phase 5
-🟡 **14 monitoring** — structlog + Sentry = Phase 6
+🟡 **11 CD** and **12 live deploy** — code complete and verified; blocked only on the manual
+steps in §6 (secrets + blueprint apply).
 
 ---
 
 ## 3. What exists
 
-**Backend** — 65 Python modules, 7 reversible migrations, **333 tests** (unit run with no
+**Backend** — 70 Python modules, 7 reversible migrations, **356 tests** (unit run with no
 database; integration need Postgres).
 
 | Area | Files |
@@ -103,6 +114,10 @@ database; integration need Postgres).
 | Jobs | `services/job.py`, `repositories/job.py`, `api/v1/jobs.py` |
 | Matching | `services/embedding.py`, `services/matching.py`, `services/match.py` |
 | Graph | `data/skill_edges_seed.py`, `services/skill_graph.py`, `services/learning_path.py` |
+| Security | `core/rate_limit.py` (Redis fixed window), `api/rate_limit.py` (dependency), `docs/security.md` |
+| Observability | `core/logging.py` (structlog), `api/middleware.py` (request IDs), Sentry init in `main.py` |
+| Maintenance | `workers/maintenance.py` — beat-scheduled token purge + stuck-resume requeue |
+| Delivery | `scripts/load_test.py`, `docs/DEMO.md`, `docs/INTERVIEW.md` |
 
 **API surface**
 
@@ -149,6 +164,7 @@ a change of mind means a new ADR superseding the old.
 | 0008 | Colocated Celery worker | Render's free tier has **no** Background Workers; $7/mo is the documented upgrade |
 | 0009 | fastembed ONNX | Measured **200 MB** peak; never import at module scope; recycle child per task |
 | 0010 | Skill graph as DAG | Topological sort, not shortest path — a plan is not a path |
+| 0011 | Hand-rolled Redis rate limiting | ~40 lines beats a dependency; fixed window; **fails open** when Redis is down — availability of login over strictness, the outage surfaces via `/health/ready` |
 
 ---
 
@@ -194,6 +210,22 @@ within six steps from scratch.
   backend's own reuse detection and sign the user out. `api.ts` uses a **single-flight** guard.
 - eslint-config-next v16 ships flat configs — `FlatCompat` crashes.
 
+### Observability & workers (Phase 6)
+- **Another compose project can steal port 5433.** Integration tests suddenly failed with
+  `password authentication failed for user "careergraph"` — a *different* project's Postgres
+  container (learn2earn) was listening on 5433 and ours was down. A password error can mean
+  "right port, wrong database entirely"; check `docker ps` before checking credentials.
+- **Celery silently hijacks the root logger.** Connecting *any* receiver to the
+  `setup_logging` signal disables that — which is the only reason the worker's JSON logging
+  survives. Delete that receiver and production logs quietly revert to Celery's format.
+- **Embedded beat writes a schedule file.** Default location is the CWD, which the container
+  user cannot write; `beat_schedule_filename` points at `/tmp`. Symptom otherwise: worker
+  boots, beat dies, sweepers never fire, nothing looks broken.
+- **`resumes.size_bytes` has a `> 0` check constraint.** A test manufacturing a row with
+  `file_data=None` must still claim a positive size.
+- Embedded beat (`-B`) is correct **only with one worker instance** — each instance would fire
+  every schedule. Scaling workers means a dedicated beat process first.
+
 ---
 
 ## 6. Outstanding manual steps — CD is red because of these
@@ -212,22 +244,25 @@ environment locally): **the app boots fine**; the workflow exits on its own guar
    name differs, update `cd.yml` and `render.yaml`.
 4. **Vercel** — not yet deployed. Needs `NEXT_PUBLIC_API_URL`, and the Render `CORS_ORIGINS` must
    then be set to the Vercel URL.
+5. **`SENTRY_DSN` (optional).** Create a free Sentry project, paste the DSN into the Render
+   environment. Leaving it blank is valid — the app treats blank as "Sentry off".
 
 ---
 
 ## 7. Known gaps, deliberately deferred
 
+Closed this cycle: rate limiting (Phase 5), Dependabot (Phase 5), structured logging + error
+tracking (Phase 6), refresh-token growth (purge sweeper), stuck-`pending` resumes (requeue
+sweeper).
+
 | Gap | Why acceptable | When |
 |---|---|---|
-| No rate limiting on `/auth/login` | Argon2 costs ~50 ms, but that is not a control | **Phase 5** |
-| No Dependabot / dependency scanning | — | **Phase 5** |
-| **No frontend tests at all** | Flagged honestly rather than skipped quietly | Phase 5 or 7 |
-| No structured logging or error tracking | `/health` + `/health/ready` only | Phase 6 |
-| `refresh_tokens` grows without bound | Spent rows must persist for reuse detection | Phase 6 sweeper |
-| Resume can stick in `pending` if the process dies between commit and enqueue | Recoverable; better than losing the upload | Phase 6 sweeper |
+| **No frontend tests at all** | Flagged honestly rather than skipped quietly | Post-v1; Playwright E2E is the right first test |
 | Free-tier memory is marginal | 200 MB model + 150 MB API on 512 MB; mitigated by per-task child recycling | $7/mo Render worker if it OOMs |
 | Registration reveals whether an address is taken | Alternative needs email delivery | Documented in ADR-0007 |
-| Graph is rebuilt per request | 2 queries, ~130 edges, few ms | Cache when measured, Phase 6 |
+| Graph is rebuilt per request | 2 queries, ~130 edges, few ms | Cache when measured |
+| Per-IP rate limits are weak behind shared NATs | Campus/office NAT shares one IP; limits are set generously | Per-account limits if it bites |
+| Load test is smoke-level (single host, GETs only) | Answers "does it fall over", not "what is capacity" | Locust/k6 if capacity planning ever matters |
 
 ---
 

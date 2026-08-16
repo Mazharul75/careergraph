@@ -115,6 +115,34 @@ class Settings(BaseSettings):
     # reliably hand freed arenas back, and ONNX Runtime allocates natively. See ADR-0009.
     celery_max_tasks_per_child: int = 1
 
+    # --- Rate limiting ---------------------------------------------------------------
+    # Per-IP fixed windows on the unauthenticated credential endpoints (see ADR-0011).
+    # The numbers are deliberately generous for humans and hopeless for brute force: nobody
+    # mistypes a password ten times in five minutes, but an attacker needs millions of tries.
+    rate_limit_enabled: bool = True
+    rate_limit_login: int = 10
+    rate_limit_login_window_seconds: int = 300
+    # Registration is limited per hour: account flooding is a slow-burn abuse, not a burst.
+    rate_limit_register: int = 20
+    rate_limit_register_window_seconds: int = 3600
+    # Refresh fires automatically from clients, so its ceiling is much higher — a legitimate
+    # SPA refreshes once per access-token expiry, i.e. a few times an hour.
+    rate_limit_refresh: int = 60
+    rate_limit_refresh_window_seconds: int = 60
+
+    # --- Observability ----------------------------------------------------------------
+    # Error tracking is opt-in: unset means Sentry never initialises, which is the right
+    # default for local development and CI where every induced test failure would be noise.
+    sentry_dsn: str | None = None
+    # 0.0 = error events only, no performance tracing. Tracing samples add volume against
+    # Sentry's free quota and we have request logs for latency; errors are the scarce signal.
+    sentry_traces_sample_rate: float = 0.0
+
+    # --- Background maintenance -------------------------------------------------------
+    # A resume still `pending` after this long has fallen through the crack between the
+    # database commit and the queue write (see the dispatcher); the sweeper re-enqueues it.
+    stuck_resume_after_minutes: int = 15
+
     # --- Uploads ---------------------------------------------------------------------
     # 5 MB. Resumes are a page or two; anything larger is a mistake or an attack, and an
     # unbounded upload is a trivial way to exhaust memory and disk.

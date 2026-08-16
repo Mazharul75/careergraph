@@ -117,6 +117,9 @@ services:
       - --concurrency=1
       - --without-gossip
       - --without-mingle
+      # Embedded celery beat: schedules the maintenance sweepers from inside the worker
+      # process. Correct only while there is exactly one worker instance.
+      - -B
 
 volumes:
   postgres_data:

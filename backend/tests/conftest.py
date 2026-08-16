@@ -14,11 +14,12 @@ Two things follow from that:
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, create_async_engine
 
@@ -54,6 +55,10 @@ def _resolve_test_database_url() -> str:
 # populated by the bootstrap read above.
 TEST_DATABASE_URL = _resolve_test_database_url()
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+# Rate limiting is off by default for the whole suite: hundreds of tests log in from the same
+# fake client address, which is exactly the traffic pattern the limiter exists to reject. The
+# dedicated rate-limit tests re-enable it explicitly with their own tight limits.
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 get_settings.cache_clear()
 
 from app.api.deps import get_db  # noqa: E402
@@ -116,22 +121,31 @@ async def db_session(connection: AsyncConnection) -> AsyncGenerator[AsyncSession
 
 
 @pytest.fixture
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """An HTTP client wired to the app, with the database dependency overridden.
+def app(db_session: AsyncSession) -> Generator[FastAPI, None, None]:
+    """A fresh application instance with the database dependency overridden.
+
+    Exposed as its own fixture (rather than built inside ``client``) so tests can install
+    additional ``dependency_overrides`` — the rate-limit tests swap the Redis-backed limiter
+    for an in-memory one this way.
+    """
+    application = create_app()
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    application.dependency_overrides[get_db] = _override_get_db
+    yield application
+    application.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
+    """An HTTP client wired to the app.
 
     ``ASGITransport`` calls the ASGI application in-process — no socket, no live server. The
     request path is otherwise identical to production: real routing, real middleware, real
     dependency resolution, real validation.
     """
-    app = create_app()
-
-    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        yield db_session
-
-    app.dependency_overrides[get_db] = _override_get_db
-
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as http_client:
         yield http_client
-
-    app.dependency_overrides.clear()

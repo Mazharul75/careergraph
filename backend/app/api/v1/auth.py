@@ -8,9 +8,10 @@ without HTTP.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
 from app.api.deps import AuthServiceDep, CurrentUser
+from app.api.rate_limit import rate_limit
 from app.schemas.auth import (
     LoginRequest,
     LogoutRequest,
@@ -28,7 +29,14 @@ router = APIRouter()
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create an account",
-    responses={409: {"description": "Email already registered"}},
+    responses={
+        409: {"description": "Email already registered"},
+        429: {"description": "Rate limit exceeded"},
+    },
+    # In `dependencies=` rather than the signature: the limiter yields no value the handler
+    # needs, it either passes or raises. All three credential endpoints are limited per-IP —
+    # they are unauthenticated, so they are the free attack surface. See ADR-0011.
+    dependencies=[Depends(rate_limit("register"))],
 )
 async def register(payload: RegisterRequest, auth: AuthServiceDep) -> UserResponse:
     user = await auth.register(
@@ -47,7 +55,11 @@ async def register(payload: RegisterRequest, auth: AuthServiceDep) -> UserRespon
     "/login",
     response_model=TokenPair,
     summary="Exchange credentials for a token pair",
-    responses={401: {"description": "Incorrect email or password"}},
+    responses={
+        401: {"description": "Incorrect email or password"},
+        429: {"description": "Rate limit exceeded"},
+    },
+    dependencies=[Depends(rate_limit("login"))],
 )
 async def login(payload: LoginRequest, auth: AuthServiceDep) -> TokenPair:
     _user, tokens = await auth.login(email=payload.email, password=payload.password)
@@ -62,7 +74,11 @@ async def login(payload: LoginRequest, auth: AuthServiceDep) -> TokenPair:
     "/refresh",
     response_model=TokenPair,
     summary="Rotate a refresh token for a new pair",
-    responses={401: {"description": "Token invalid, expired, or already used"}},
+    responses={
+        401: {"description": "Token invalid, expired, or already used"},
+        429: {"description": "Rate limit exceeded"},
+    },
+    dependencies=[Depends(rate_limit("refresh"))],
 )
 async def refresh(payload: RefreshRequest, auth: AuthServiceDep) -> TokenPair:
     tokens = await auth.refresh(raw_refresh_token=payload.refresh_token)
