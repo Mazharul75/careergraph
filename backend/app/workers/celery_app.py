@@ -13,9 +13,13 @@ messages queue up and drain when it returns.
 
 from __future__ import annotations
 
+from typing import Any
+
 from celery import Celery
+from celery.signals import setup_logging
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 
 _settings = get_settings()
 
@@ -25,8 +29,20 @@ celery_app = Celery(
     # `include` is how the worker discovers task functions. Without it, the worker starts
     # cleanly, receives the message, and rejects it as unregistered — a confusing failure,
     # because nothing looks broken until you read the worker log.
-    include=["app.workers.tasks"],
+    include=["app.workers.tasks", "app.workers.maintenance"],
 )
+
+
+@setup_logging.connect
+def _configure_worker_logging(**_kwargs: Any) -> None:
+    """Give the worker the same structured logging as the API.
+
+    Connecting *any* receiver to this signal also stops Celery from hijacking the root
+    logger with its own format — which it does by default, and which would silently undo
+    the JSON configuration in production.
+    """
+    configure_logging(log_level=_settings.log_level, environment=_settings.environment)
+
 
 celery_app.conf.update(
     # --- Serialization -----------------------------------------------------------------
@@ -65,4 +81,23 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     timezone="UTC",
     enable_utc=True,
+    # --- Periodic maintenance (celery beat, embedded via the worker's -B flag) -----------
+    beat_schedule={
+        # Daily is plenty: the table grows by one row per login, and the sweep is a single
+        # indexed DELETE.
+        "purge-expired-refresh-tokens": {
+            "task": "maintenance.purge_expired_refresh_tokens",
+            "schedule": 24 * 60 * 60.0,
+        },
+        # Every 10 minutes, against a 15-minute stuck threshold: a lost resume is repaired
+        # within ~25 minutes worst case, while a healthy queue makes this a no-op SELECT.
+        "requeue-stuck-resumes": {
+            "task": "maintenance.requeue_stuck_resumes",
+            "schedule": 10 * 60.0,
+        },
+    },
+    # Beat persists its "last run" bookkeeping to a small file. The container filesystem is
+    # read-only-ish for the app user at /app, and the file is disposable state — /tmp is
+    # exactly right. Losing it on restart merely re-baselines the schedule.
+    beat_schedule_filename="/tmp/celerybeat-schedule",  # noqa: S108
 )

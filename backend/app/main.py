@@ -5,13 +5,16 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import health
 from app.api.errors import register_exception_handlers
+from app.api.middleware import RequestContextMiddleware
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.db.session import engine
 
 
@@ -34,6 +37,22 @@ def create_app() -> FastAPI:
     independent instance with different settings instead of mutating a shared global.
     """
     settings = get_settings()
+
+    configure_logging(log_level=settings.log_level, environment=settings.environment)
+
+    # Sentry is an error-tracking service: unhandled exceptions are captured with their full
+    # stack trace, request context, and frequency, and grouped into issues — so "something
+    # broke in production" arrives as an alert with a traceback instead of a user complaint.
+    # Logs tell you what happened in order; Sentry tells you what is *broken* right now.
+    if settings.sentry_dsn:
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.environment,
+            traces_sample_rate=settings.sentry_traces_sample_rate,
+            # Resumes and emails pass through this API. Sentry must see stack traces, never
+            # request bodies or user PII — a debugging tool must not become a data leak.
+            send_default_pii=False,
+        )
 
     app = FastAPI(
         title=settings.project_name,
@@ -59,6 +78,10 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
     )
+
+    # Added after CORS, which makes it the *outer* layer (Starlette middleware is an onion:
+    # last added runs first). The request ID must exist before anything else can log.
+    app.add_middleware(RequestContextMiddleware)
 
     register_exception_handlers(app)
 

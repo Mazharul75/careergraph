@@ -130,6 +130,19 @@ class Settings(BaseSettings):
     rate_limit_refresh: int = 60
     rate_limit_refresh_window_seconds: int = 60
 
+    # --- Observability ----------------------------------------------------------------
+    # Error tracking is opt-in: unset means Sentry never initialises, which is the right
+    # default for local development and CI where every induced test failure would be noise.
+    sentry_dsn: str | None = None
+    # 0.0 = error events only, no performance tracing. Tracing samples add volume against
+    # Sentry's free quota and we have request logs for latency; errors are the scarce signal.
+    sentry_traces_sample_rate: float = 0.0
+
+    # --- Background maintenance -------------------------------------------------------
+    # A resume still `pending` after this long has fallen through the crack between the
+    # database commit and the queue write (see the dispatcher); the sweeper re-enqueues it.
+    stuck_resume_after_minutes: int = 15
+
     # --- Uploads ---------------------------------------------------------------------
     # 5 MB. Resumes are a page or two; anything larger is a mistake or an attack, and an
     # unbounded upload is a trivial way to exhaust memory and disk.

@@ -61,6 +61,11 @@ services:
       - key: REDIS_URL
         sync: false
 
+      # Optional: paste a Sentry DSN to enable error tracking, or leave blank to run
+      # without it. The application treats an empty value as "Sentry off".
+      - key: SENTRY_DSN
+        sync: false
+
       - key: CELERY_CONCURRENCY
         value: "1"
       - key: CELERY_MAX_TASKS_PER_CHILD
