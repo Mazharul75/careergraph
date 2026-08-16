@@ -20,6 +20,7 @@ from app.core.security import hash_password
 from app.db.sync_session import SyncSessionFactory
 from app.models.resume import ParseStatus, Resume
 from app.models.user import User
+from app.workers import tasks
 from app.workers.tasks import parse_resume
 from tests.unit.test_extraction import make_docx, make_pdf
 
@@ -81,6 +82,25 @@ def reload_resume(resume_id: uuid.UUID) -> Resume:
         session.close()
 
 
+@pytest.fixture(autouse=True)
+def enqueued_embeddings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Capture the follow-up embed task instead of dispatching it to a real broker.
+
+    Embedding is a separate task now, so a successful parse ends by enqueueing one. Letting
+    that reach Redis would leave messages nobody consumes, and running it for real would load
+    a 200 MB model into the test process.
+    """
+    calls: list[str] = []
+
+    class _FakeTask:
+        @staticmethod
+        def delay(resume_id: str, **_kwargs: object) -> None:
+            calls.append(resume_id)
+
+    monkeypatch.setattr(tasks, "embed_resume", _FakeTask)
+    return calls
+
+
 class TestSuccessfulParse:
     def test_extracts_text_and_marks_complete(self, owner: uuid.UUID) -> None:
         resume_id = create_resume(owner, make_pdf("Python and PostgreSQL"))
@@ -93,6 +113,27 @@ class TestSuccessfulParse:
         assert resume.extracted_text is not None
         assert "Python" in resume.extracted_text
         assert resume.error_message is None
+
+    def test_queues_embedding_only_after_the_parse_is_committed(
+        self, owner: uuid.UUID, enqueued_embeddings: list[str]
+    ) -> None:
+        """The whole point of the split: the resume is durably `complete` before the
+        memory-hungry step is even scheduled, so an OOM kill there cannot strand it."""
+        resume_id = create_resume(owner, make_pdf("Python"))
+
+        parse_resume(str(resume_id))
+
+        assert enqueued_embeddings == [str(resume_id)]
+        assert reload_resume(resume_id).status is ParseStatus.COMPLETE
+
+    def test_failed_parse_queues_no_embedding(
+        self, owner: uuid.UUID, enqueued_embeddings: list[str]
+    ) -> None:
+        resume_id = create_resume(owner, b"%PDF-1.4\nnot really a pdf")
+
+        parse_resume(str(resume_id))
+
+        assert enqueued_embeddings == []
 
     def test_discards_the_uploaded_bytes_afterwards(self, owner: uuid.UUID) -> None:
         # The text is what downstream phases need; the original document is not. Dropping it

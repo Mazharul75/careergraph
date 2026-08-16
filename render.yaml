@@ -68,8 +68,11 @@ services:
 
       - key: CELERY_CONCURRENCY
         value: "1"
+      # Recycle the worker child after every task. The embedding model is ~200 MB resident
+      # (ADR-0009) and process exit is the only thing that reliably returns it to the OS; a
+      # higher value keeps it alongside the API on a 512 MB instance until something is killed.
       - key: CELERY_MAX_TASKS_PER_CHILD
-        value: "10"
+        value: "1"
       - key: MAX_UPLOAD_BYTES
         value: "5242880"
 

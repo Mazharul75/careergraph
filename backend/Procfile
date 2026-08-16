@@ -10,10 +10,12 @@ web: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --p
 
 # --concurrency=1: one child process. The free instance has 512 MB shared with the API, and
 #   each additional child is a full Python interpreter.
-# --max-tasks-per-child: recycle the child periodically, so a slow leak in a parsing library
-#   cannot accumulate into an OOM kill hours later.
+# --max-tasks-per-child=1: recycle the child after EVERY task. ADR-0009 measured the embedding
+#   model at ~200 MB resident, and process exit is what actually returns it to the OS -- CPython
+#   does not reliably hand freed arenas back, and ONNX Runtime allocates natively. A higher
+#   value keeps that 200 MB resident alongside the API on a 512 MB instance.
 # -B: embedded celery beat — the scheduler that fires the maintenance sweepers. Fine with a
 #   single worker instance; must become its own process if workers ever scale out.
 # --without-gossip/--without-mingle: inter-worker coordination chatter that only matters in a
 #   multi-worker cluster. With one worker it is pure Redis traffic and slower startup.
-worker: /app/.venv/bin/celery -A app.workers.celery_app.celery_app worker --loglevel=info --concurrency=1 --max-tasks-per-child=10 --without-gossip --without-mingle -B
+worker: /app/.venv/bin/celery -A app.workers.celery_app.celery_app worker --loglevel=info --concurrency=1 --max-tasks-per-child=1 --without-gossip --without-mingle -B

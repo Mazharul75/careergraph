@@ -55,16 +55,25 @@ def purge_expired_refresh_tokens() -> int:
 
 @celery_app.task(name="maintenance.requeue_stuck_resumes")
 def requeue_stuck_resumes() -> int:
-    """Re-enqueue resumes stuck in ``pending``.
+    """Re-enqueue resumes stranded in a non-terminal state.
 
-    The upload endpoint commits the resume row and *then* enqueues the parse task. If the
-    process dies between those two steps, the row sits in ``pending`` forever and the UI
-    polls forever — the one gap in the outbox-less dispatch design (see the dispatcher).
-    This sweeper closes it: anything still pending well past the enqueue window gets a fresh
-    message. Re-enqueueing is safe because ``parse_resume`` is idempotent — if the original
-    message was merely slow rather than lost, the second run sees ``complete`` and exits.
+    Two distinct failures leave a resume that no amount of waiting will fix, and the UI polls
+    forever for both:
 
-    A stuck row whose file bytes are already gone cannot be reparsed, so it is failed
+    * **``pending``** — the upload endpoint commits the resume row and *then* enqueues the
+      parse task. A crash between those two steps loses the message; the row is never picked
+      up. This is the one gap in the outbox-less dispatch design (see the dispatcher).
+    * **``processing``** — the worker took the job, set the status, and was killed mid-parse
+      (an out-of-memory kill on a small instance does exactly this). Redis-backed Celery does
+      not redeliver such a message until its visibility timeout elapses, and the row is
+      already past ``pending``, so an earlier version of this sweeper walked straight past it.
+
+    Both are repaired the same way, because ``parse_resume`` is idempotent: a resume that
+    finished after all sees ``complete`` and exits, and one that genuinely died starts over
+    from its still-intact bytes. The cutoff is far longer than the task's hard time limit, so
+    a parse that is merely slow is never interrupted.
+
+    A stranded row whose file bytes are already gone cannot be reparsed, so it is failed
     outright with a message that tells the user what to do.
     """
     settings = get_settings()
@@ -74,7 +83,8 @@ def requeue_stuck_resumes() -> int:
         stuck = (
             session.execute(
                 select(Resume.id, Resume.file_data.is_(None)).where(
-                    Resume.status == ParseStatus.PENDING, Resume.updated_at < cutoff
+                    Resume.status.in_([ParseStatus.PENDING, ParseStatus.PROCESSING]),
+                    Resume.updated_at < cutoff,
                 )
             )
             .tuples()

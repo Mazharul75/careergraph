@@ -27,6 +27,7 @@ Rules for this log:
 | [0009](0009-fastembed-onnx-for-embeddings.md) | fastembed (ONNX) for embeddings, with per-task worker recycling | Accepted |
 | [0010](0010-skill-graph-as-a-dag.md) | Model skills as a DAG and plan with topological sort | Accepted |
 | [0011](0011-hand-rolled-redis-rate-limiting.md) | Hand-rolled fixed-window rate limiting in Redis | Accepted |
+| [0012](0012-embedding-as-a-separate-task.md) | Embedding runs as its own task, after the parse commits | Accepted |
 
 ## Template
 

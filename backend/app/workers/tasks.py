@@ -117,15 +117,6 @@ def parse_resume(self: Any, resume_id: str) -> str:
             logger.exception("parse_resume: skill extraction failed for resume %s", resume_id)
             skill_count = 0
 
-        # Embedding is the expensive step (~200 MB of model, see ADR-0009) and it is best
-        # effort: a resume with text and skills but no vector still scores, just on skills
-        # alone. Failing the whole parse because the model could not load would throw away
-        # work that already succeeded.
-        try:
-            resume.embedding = embed_text(text)
-        except Exception:
-            logger.exception("parse_resume: embedding failed for resume %s", resume_id)
-
         resume.extracted_text = text
         resume.status = ParseStatus.COMPLETE
         resume.error_message = None
@@ -140,6 +131,59 @@ def parse_resume(self: Any, resume_id: str) -> str:
             len(text),
             skill_count,
         )
+
+    # Embedding runs as its own task, and deliberately *after* this transaction commits.
+    #
+    # The model costs ~200 MB resident (ADR-0009) against a 512 MB instance shared with the
+    # API. Loading it inside this task meant an out-of-memory kill destroyed the parse too:
+    # the process dies, so the `except` clause that was supposed to make embedding
+    # best-effort never runs, and the resume is left stranded mid-parse. A separate task
+    # moves that risk off the critical path — the resume is already `complete` with its text
+    # and skills before the expensive step begins, so the worst case costs only the vector,
+    # and match scoring falls back to skill overlap alone until it lands.
+    embed_resume.delay(resume_id)
+    return "complete"
+
+
+@celery_app.task(name="resumes.embed", bind=True, max_retries=2, default_retry_delay=60)
+def embed_resume(self: Any, resume_id: str) -> str:
+    """Compute and store a resume's embedding, after parsing has already succeeded.
+
+    Idempotent: embedding the same text always yields the same vector, and an existing
+    vector short-circuits the work entirely.
+    """
+    resume_uuid = uuid.UUID(resume_id)
+
+    with worker_session() as session:
+        resume = session.get(Resume, resume_uuid)
+        if resume is None:
+            logger.warning("embed_resume: resume %s no longer exists", resume_id)
+            return "missing"
+
+        if resume.embedding is not None:
+            return "already-embedded"
+
+        if not resume.extracted_text:
+            # Nothing to embed. Not an error: the parse may have failed, or this task may
+            # have raced ahead of a re-upload.
+            logger.info("embed_resume: resume %s has no text", resume_id)
+            return "no-text"
+
+        try:
+            resume.embedding = embed_text(resume.extracted_text)
+        except SoftTimeLimitExceeded:
+            logger.error("embed_resume: resume %s exceeded the time limit", resume_id)
+            return "timeout"
+        except Exception as exc:
+            logger.exception("embed_resume: failed for resume %s", resume_id)
+            try:
+                raise self.retry(exc=exc) from exc
+            except self.MaxRetriesExceededError:
+                # The resume stays `complete` and fully usable — only the semantic half of
+                # its match score is missing.
+                return "failed"
+
+        logger.info("embed_resume: resume %s embedded", resume_id)
         return "complete"
 
 
