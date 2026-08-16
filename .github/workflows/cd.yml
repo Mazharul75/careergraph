@@ -30,7 +30,7 @@ jobs:
 
     environment:
       name: production
-      url: https://careergraph-api.onrender.com
+      url: https://careergraph-api-f9n2.onrender.com
 
     steps:
       - name: Trigger Render deploy
@@ -53,10 +53,10 @@ jobs:
           # Render builds asynchronously, so a successful hook call only means "queued".
           # Poll /health until it answers, and fail the job if it never does — otherwise a
           # deploy that crashes on boot shows up as a green pipeline.
-          echo "Waiting for https://careergraph-api.onrender.com/health ..."
+          echo "Waiting for https://careergraph-api-f9n2.onrender.com/health ..."
           for attempt in $(seq 1 60); do
             status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
-              https://careergraph-api.onrender.com/health || echo "000")
+              https://careergraph-api-f9n2.onrender.com/health || echo "000")
             if [ "$status" = "200" ]; then
               echo "Healthy after ${attempt} attempt(s)."
               exit 0
@@ -72,4 +72,4 @@ jobs:
           # /health only proves the process is up. /health/ready proves it can reach Postgres,
           # which is what catches a bad DATABASE_URL or a failed migration.
           curl --fail --silent --show-error \
-            https://careergraph-api.onrender.com/health/ready | tee /dev/stderr | grep -q '"status":"ready"'
+            https://careergraph-api-f9n2.onrender.com/health/ready | tee /dev/stderr | grep -q '"status":"ready"'
