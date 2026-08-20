@@ -47,6 +47,17 @@ FROM python:3.12-slim-bookworm AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH" \
+    # --- Memory ceilings for a 512 MB instance ---------------------------------------------
+    # Both of these size themselves from the *host's* core count by default, not from the
+    # container's memory limit — which is how a ~200 MB model becomes an OOM kill on a small
+    # instance running on a large machine.
+    #
+    # OMP_NUM_THREADS=1: ONNX Runtime's OpenMP pool. One thread means one set of buffers, and
+    #   embedding a single short document was never compute-bound anyway — loading is the cost.
+    # MALLOC_ARENA_MAX=2: glibc creates up to 8 arenas per core for threaded allocation. Each
+    #   is a separate heap counted against RSS but rarely filled. Two is ample at concurrency 1.
+    OMP_NUM_THREADS=1 \
+    MALLOC_ARENA_MAX=2 \
     # Must match the builder stage. If it does not, the runtime looks in an empty directory
     # and silently re-downloads a model the image already contains.
     FASTEMBED_CACHE_PATH=/app/.model-cache

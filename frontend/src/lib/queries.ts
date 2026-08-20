@@ -19,6 +19,7 @@ import type {
   Resume,
   RankedCandidate,
   Skill,
+  SkillGraphData,
   SkillPath,
   SkillProfile,
   SkillStatus,
@@ -41,6 +42,7 @@ export const keys = {
   adminStats: ["admin", "stats"] as const,
   adminUsers: ["admin", "users"] as const,
   skillPath: (id: string) => ["skills", id, "learning-path"] as const,
+  graph: ["skills", "graph"] as const,
 };
 
 /* -------------------------------------------------------------------------- resumes */
@@ -324,5 +326,14 @@ export function useSkillPath(skillId: string): UseQueryResult<SkillPath> {
   return useQuery({
     queryKey: keys.skillPath(skillId),
     queryFn: () => apiFetch<SkillPath>(`/api/v1/skills/${skillId}/learning-path`),
+  });
+}
+
+export function useSkillGraph(): UseQueryResult<SkillGraphData> {
+  return useQuery({
+    queryKey: keys.graph,
+    queryFn: () => apiFetch<SkillGraphData>("/api/v1/skills/graph"),
+    // Seeded by migration and immutable while the app is open.
+    staleTime: Infinity,
   });
 }
