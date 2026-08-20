@@ -196,3 +196,8 @@ export interface AdminUser {
   skill_count: number;
   resume_count: number;
 }
+
+export interface SkillPath extends LearningPath {
+  /** Least-effort chain from something you already know to the target skill. */
+  shortest_route: string[];
+}

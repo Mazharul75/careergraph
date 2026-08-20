@@ -3,7 +3,7 @@
 > **This is the handoff document.** Read it before your first reply in any session; update it
 > before writing any phase wrap-up. If it is stale, the next session starts blind.
 
-**Last updated:** Phases 8-10 complete, 2026-08-16
+**Last updated:** Phases 8-11 complete, 2026-08-21
 **Branch:** `feat/skill-extraction` — **399 tests passing**
 **Deployed:** API at `https://careergraph-api-f9n2.onrender.com`, frontend at
 `https://careergraph-fawn.vercel.app`. CD is green.
@@ -22,8 +22,14 @@ the deployed app surfaced three real gaps, all confirmed against the code:
 onboarding); 9 recruiter candidate ranking (`GET /jobs/{id}/candidates` + page); 10 the admin
 role (migration `0009`, `scripts/promote_admin.py`, `/api/v1/admin/*`, operator console).
 
-**Next:** Phase 11 — skill detail pages, a visual skill-graph explorer, job comparison, and a
-settings page. Not started.
+**Phase 11 done:** a full design-system rebuild (Plus Jakarta Sans + Inter + JetBrains Mono
+via `next/font`, indigo/amber token palette, elevation + gradient utilities), a rewritten
+marketing landing page (8 sections: hero with the dependency chain shown as proof, problem,
+how-it-works, features, recruiters, under-the-hood, FAQ, CTA), `/skills/[id]` skill detail
+with the ordered plan and cheapest route, and `/settings`.
+
+**Still open:** a visual (canvas/SVG) skill-graph explorer and side-by-side job comparison —
+both deliberately deferred, neither blocks the demo.
 
 ---
 
@@ -139,6 +145,8 @@ database; integration need Postgres).
 | Journey UI (8b) | `components/GoalPanel.tsx`, reworked `dashboard/page.tsx`, learning section on `skills/page.tsx` |
 | Candidates (9) | `repositories/candidate.py`, `services/candidates.py`, `api/v1/candidates.py`, `jobs/[id]/candidates/page.tsx` |
 | Admin (10) | `repositories/admin.py`, `services/admin.py`, `api/v1/admin.py`, `scripts/promote_admin.py`, `admin/page.tsx`, migration `0009` |
+| Design system (11) | `app/globals.css` (tokens, type, elevation, hero/grid utilities), `app/layout.tsx` (self-hosted fonts) |
+| Depth pages (11) | `app/page.tsx` (landing), `skills/[id]/page.tsx`, `settings/page.tsx` |
 
 **API surface**
 

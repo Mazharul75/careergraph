@@ -19,6 +19,7 @@ import type {
   Resume,
   RankedCandidate,
   Skill,
+  SkillPath,
   SkillProfile,
   SkillStatus,
   SystemStats,
@@ -39,6 +40,7 @@ export const keys = {
   candidates: (id: string) => ["jobs", id, "candidates"] as const,
   adminStats: ["admin", "stats"] as const,
   adminUsers: ["admin", "users"] as const,
+  skillPath: (id: string) => ["skills", id, "learning-path"] as const,
 };
 
 /* -------------------------------------------------------------------------- resumes */
@@ -315,5 +317,12 @@ export function useSetUserRole() {
       void client.invalidateQueries({ queryKey: keys.adminUsers });
       void client.invalidateQueries({ queryKey: keys.adminStats });
     },
+  });
+}
+
+export function useSkillPath(skillId: string): UseQueryResult<SkillPath> {
+  return useQuery({
+    queryKey: keys.skillPath(skillId),
+    queryFn: () => apiFetch<SkillPath>(`/api/v1/skills/${skillId}/learning-path`),
   });
 }
