@@ -9,6 +9,8 @@ from fastapi import APIRouter, Query, status
 from app.api.deps import CurrentUser, SkillProfileServiceDep
 from app.schemas.skill import (
     AddSkillRequest,
+    SkillEdgeResponse,
+    SkillGraphResponse,
     SkillProfileResponse,
     SkillResponse,
     StartLearningRequest,
@@ -40,6 +42,27 @@ async def list_skills(
     if category:
         skills = [s for s in skills if s.category.value == category]
     return [SkillResponse.model_validate(skill) for skill in skills]
+
+
+@router.get(
+    "/graph",
+    response_model=SkillGraphResponse,
+    summary="The whole skill graph: vocabulary plus prerequisite edges",
+)
+async def get_skill_graph(profile: SkillProfileServiceDep) -> SkillGraphResponse:
+    """Unauthenticated, like the vocabulary itself.
+
+    Declared *before* `/me` and any `/{skill_id}` route: FastAPI matches in declaration
+    order, so a literal path registered after a parameterised one would never be reached.
+    """
+    skills, edges = await profile.get_graph()
+    return SkillGraphResponse(
+        skills=[SkillResponse.model_validate(s) for s in skills],
+        edges=[
+            SkillEdgeResponse(prerequisite_id=prerequisite, skill_id=skill)
+            for prerequisite, skill in edges
+        ],
+    )
 
 
 @router.get(

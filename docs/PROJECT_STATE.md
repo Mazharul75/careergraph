@@ -3,8 +3,8 @@
 > **This is the handoff document.** Read it before your first reply in any session; update it
 > before writing any phase wrap-up. If it is stale, the next session starts blind.
 
-**Last updated:** Phases 8-11 complete, 2026-08-21
-**Branch:** `feat/skill-extraction` — **399 tests passing**
+**Last updated:** Phases 8-11 complete + OOM hardening, 2026-08-21
+**Branch:** `feat/skill-extraction` — **403 tests passing**
 **Deployed:** API at `https://careergraph-api-f9n2.onrender.com`, frontend at
 `https://careergraph-fawn.vercel.app`. CD is green.
 
@@ -28,8 +28,9 @@ marketing landing page (8 sections: hero with the dependency chain shown as proo
 how-it-works, features, recruiters, under-the-hood, FAQ, CTA), `/skills/[id]` skill detail
 with the ordered plan and cheapest route, and `/settings`.
 
-**Still open:** a visual (canvas/SVG) skill-graph explorer and side-by-side job comparison —
-both deliberately deferred, neither blocks the demo.
+**Now also done:** `/explore` (the skill graph drawn as SVG, 113 nodes and 128 edges laid out
+by dependency depth) and `/jobs/compare` (up to three roles side by side, plus the skills more
+than one of them wants — the highest-leverage thing to learn next).
 
 ---
 
@@ -146,7 +147,7 @@ database; integration need Postgres).
 | Candidates (9) | `repositories/candidate.py`, `services/candidates.py`, `api/v1/candidates.py`, `jobs/[id]/candidates/page.tsx` |
 | Admin (10) | `repositories/admin.py`, `services/admin.py`, `api/v1/admin.py`, `scripts/promote_admin.py`, `admin/page.tsx`, migration `0009` |
 | Design system (11) | `app/globals.css` (tokens, type, elevation, hero/grid utilities), `app/layout.tsx` (self-hosted fonts) |
-| Depth pages (11) | `app/page.tsx` (landing), `skills/[id]/page.tsx`, `settings/page.tsx` |
+| Depth pages (11) | `app/page.tsx` (landing), `skills/[id]/page.tsx`, `settings/page.tsx`, `explore/page.tsx`, `jobs/compare/page.tsx`, `components/SkillGraph.tsx` |
 
 **API surface**
 
@@ -240,6 +241,39 @@ within six steps from scratch.
 - Refresh tokens are single-use; concurrent 401s each calling `/auth/refresh` would trip the
   backend's own reuse detection and sign the user out. `api.ts` uses a **single-flight** guard.
 - eslint-config-next v16 ships flat configs — `FlatCompat` crashes.
+
+### Second production OOM (2026-08-20) — and why the ADR-0012 split still paid off
+`Exited with status 137` on Render after a resume upload. Read the timeline before concluding
+the split failed, because it did the opposite:
+
+```
+20:35:28  parse_resume ... complete, 3074 characters, 28 skills   <- committed, durable
+20:35:28  Task resumes.embed received
+20:35:34  Loading embedding model BAAI/bge-small-en-v1.5
+20:35:41  Applying database migrations...                          <- container restarted
+```
+
+The resume reached `complete` with its text and 28 skills **before** the model was ever
+touched. Only the vector was lost — exactly the degradation ADR-0012 was designed to produce.
+What was still wrong is that the container died at all, taking the API down with it for ~60s.
+
+Three fixes, in order of importance:
+
+1. **`acks_late=False` on both embed tasks.** This was the real defect. An OOM kill never runs
+   an `except` clause, so with `acks_late` the broker redelivered the message, the fresh worker
+   loaded the same 200 MB model, and died again — a crash loop on every visibility timeout,
+   forever. Acknowledging on receipt means a crash *loses* the message, which for a
+   best-effort vector is the correct loss. `parse_resume` keeps `acks_late=True`, because
+   losing that would lose real work. **The two tasks need opposite settings, and the reason is
+   what each failure costs.**
+2. **`threads=1` + `providers=["CPUExecutionProvider"]`** on the fastembed load. ONNX Runtime
+   allocates an arena per intra-op thread and sizes the pool from the *host's* core count, not
+   the container's memory limit — which is how a 200 MB model becomes 400 MB on a big host.
+3. **`OMP_NUM_THREADS=1`, `MALLOC_ARENA_MAX=2`** in the runtime image. Same class of problem:
+   glibc opens up to 8 arenas per core, each counted against RSS and rarely filled.
+
+Plus `EMBEDDING_ENABLED=false` as a production kill switch. Turning a feature off is a better
+outage than a container that dies on every upload.
 
 ### The first real production failure (2026-08-16) — read this one
 The first live resume upload hung forever. Four separate things had to be true, and the

@@ -205,3 +205,79 @@ class TestRequeueStuckResumes:
         assert resume.status is ParseStatus.FAILED
         assert resume.error_message is not None
         assert "upload it again" in resume.error_message
+
+
+class TestEmbeddingResilience:
+    """The OOM-kill lessons from production (2026-08-20), locked in as tests."""
+
+    def test_embed_tasks_do_not_use_acks_late(self) -> None:
+        """The fix for the crash loop.
+
+        An OOM kill never runs an ``except`` clause, so with ``acks_late`` the broker
+        redelivers the message, the fresh worker loads the same 200 MB model, and is killed
+        again -- taking the API sharing its container down every visibility timeout. Losing a
+        best-effort vector is the cheaper failure, so these two acknowledge on receipt.
+        """
+        from app.workers.tasks import embed_job, embed_resume
+
+        assert embed_resume.acks_late is False
+        assert embed_job.acks_late is False
+
+    def test_parse_still_uses_acks_late(self) -> None:
+        """The counterpart: losing a *parse* would lose real work, so it must be redelivered."""
+        from app.workers.tasks import parse_resume
+
+        assert parse_resume.acks_late is not False
+
+    def test_embedding_can_be_switched_off(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The production kill switch, if memory tuning is still not enough."""
+        from app.core.config import get_settings
+        from app.services.embedding import EmbeddingDisabledError, embed_texts
+
+        monkeypatch.setenv("EMBEDDING_ENABLED", "false")
+        get_settings.cache_clear()
+        try:
+            with pytest.raises(EmbeddingDisabledError):
+                embed_texts(["some resume text"])
+        finally:
+            get_settings.cache_clear()
+
+    def test_disabled_embedding_is_not_an_error_for_the_task(
+        self, monkeypatch: pytest.MonkeyPatch, owner: uuid.UUID
+    ) -> None:
+        """A switched-off feature must not burn the retry budget or mark anything failed."""
+        from app.core.config import get_settings
+        from app.workers.tasks import embed_resume
+
+        session = SyncSessionFactory()
+        resume = Resume(
+            user_id=owner,
+            original_filename="ada.pdf",
+            content_type="application/pdf",
+            size_bytes=1024,
+            status=ParseStatus.COMPLETE,
+            extracted_text="Python and PostgreSQL and Docker",
+        )
+        session.add(resume)
+        session.commit()
+        resume_id = resume.id
+        session.close()
+
+        monkeypatch.setenv("EMBEDDING_ENABLED", "false")
+        get_settings.cache_clear()
+        try:
+            assert embed_resume(str(resume_id)) == "disabled"
+        finally:
+            get_settings.cache_clear()
+
+        # The resume is untouched and still perfectly usable. `embedding` is a deferred
+        # column, so it has to be read while the session is still open — touching it after
+        # close raises DetachedInstanceError rather than returning None.
+        check = SyncSessionFactory()
+        try:
+            stored = check.get(Resume, resume_id)
+            assert stored is not None
+            assert stored.status is ParseStatus.COMPLETE
+            assert stored.embedding is None
+        finally:
+            check.close()

@@ -138,6 +138,13 @@ class Settings(BaseSettings):
     # Sentry's free quota and we have request logs for latency; errors are the scarce signal.
     sentry_traces_sample_rate: float = 0.0
 
+    # --- Embeddings -------------------------------------------------------------------
+    # The kill switch for the one component that can take the instance down. Set
+    # EMBEDDING_ENABLED=false and scoring falls back to skill coverage alone -- degraded, but
+    # every resume still parses and every score still explains itself. Turning a feature off
+    # is a better outage than a container that dies on every upload.
+    embedding_enabled: bool = True
+
     # --- Background maintenance -------------------------------------------------------
     # A resume still `pending` after this long has fallen through the crack between the
     # database commit and the queue write (see the dispatcher); the sweeper re-enqueues it.

@@ -22,7 +22,7 @@ from app.models.resume import ParseStatus, Resume
 from app.models.skill import Skill
 from app.models.user_skill import SkillSource, SkillStatus, UserSkill
 from app.repositories.skill import to_vocabulary
-from app.services.embedding import embed_text
+from app.services.embedding import EmbeddingDisabledError, embed_text
 from app.services.extraction import ExtractionError, extract_text
 from app.services.skill_matching import SkillMatcher
 from app.workers.celery_app import celery_app
@@ -145,7 +145,20 @@ def parse_resume(self: Any, resume_id: str) -> str:
     return "complete"
 
 
-@celery_app.task(name="resumes.embed", bind=True, max_retries=2, default_retry_delay=60)
+# acks_late=False, overriding the global setting, and this is the important line.
+#
+# A task killed by the OOM reaper never runs its `except` clause -- the process is simply
+# gone -- so with acks_late the broker redelivers the message, the fresh worker loads the
+# same 200 MB model, and is killed again. That is a crash loop that takes the whole
+# container (and the API sharing it) down every visibility timeout, forever.
+#
+# Acknowledging on receipt inverts the trade: a crash loses the message. For *this* task
+# that is the correct loss, because the resume is already `complete` with its text and
+# skills, and the only casualty is a vector that match scoring already treats as optional.
+# The parse task keeps acks_late=True, because losing *that* would lose real work.
+@celery_app.task(
+    name="resumes.embed", bind=True, max_retries=2, default_retry_delay=60, acks_late=False
+)
 def embed_resume(self: Any, resume_id: str) -> str:
     """Compute and store a resume's embedding, after parsing has already succeeded.
 
@@ -171,6 +184,11 @@ def embed_resume(self: Any, resume_id: str) -> str:
 
         try:
             resume.embedding = embed_text(resume.extracted_text)
+        except EmbeddingDisabledError:
+            # Switched off deliberately. Not a failure, and retrying would only burn the
+            # retry budget waiting for a setting that is not going to change mid-run.
+            logger.info("embed_resume: embedding disabled, skipping resume %s", resume_id)
+            return "disabled"
         except SoftTimeLimitExceeded:
             logger.error("embed_resume: resume %s exceeded the time limit", resume_id)
             return "timeout"
@@ -235,7 +253,12 @@ def _extract_skills(session: Session, user_id: uuid.UUID, text: str) -> int:
     return len(rows)
 
 
-@celery_app.task(name="jobs.embed", bind=True, max_retries=2, default_retry_delay=30)
+# acks_late=False for the same reason as resumes.embed: the job is fully usable for
+# skill-based scoring without its vector, so a redelivery that reliably OOMs costs more
+# than the missing embedding does.
+@celery_app.task(
+    name="jobs.embed", bind=True, max_retries=2, default_retry_delay=30, acks_late=False
+)
 def embed_job(self: Any, job_id: str) -> str:
     """Compute and store a job description's embedding.
 
@@ -258,6 +281,11 @@ def embed_job(self: Any, job_id: str) -> str:
             # Title and description together, matching how skills are extracted, so the two
             # signals describe the same text rather than subtly different documents.
             job.embedding = embed_text(f"{job.title}\n{job.description}")
+        except EmbeddingDisabledError:
+            # Deliberately off, not broken. The job stays fully usable for skill-based
+            # scoring; only the semantic corroborator is absent.
+            logger.info("embed_job: embedding disabled, skipping job %s", job_id)
+            return "disabled"
         except SoftTimeLimitExceeded:
             logger.error("embed_job: job %s exceeded the time limit", job_id)
             return "timeout"

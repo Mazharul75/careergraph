@@ -23,6 +23,14 @@ colocated worker (ADR-0008). So:
 * The model files are baked into the Docker image at build time rather than downloaded on first
   use, because the free instance has an ephemeral disk — a runtime download would repeat after
   every deploy and every cold start.
+* Loading is pinned to a **single ONNX thread** and the process runs with a capped glibc arena
+  count (see the Dockerfile). Both are memory measures: the default thread pool is sized from
+  the host's core count, not the container's memory limit, so an unconstrained load on a small
+  instance allocates far more than the model itself needs.
+
+**If this still gets OOM-killed**, set ``EMBEDDING_ENABLED=false``. Scoring falls back to skill
+coverage alone, which is the component users can act on anyway — the semantic half is a
+corroborator, not the verdict.
 """
 
 from __future__ import annotations
@@ -60,7 +68,16 @@ def get_model() -> TextEmbedding:
                 from fastembed import TextEmbedding
 
                 logger.info("Loading embedding model %s", MODEL_NAME)
-                _model = TextEmbedding(model_name=MODEL_NAME)
+                # threads=1 is a memory decision, not a speed one. ONNX Runtime allocates a
+                # separate arena per intra-op thread, and on a multi-core host it sizes that
+                # pool from the *host* core count -- which on a 512 MB instance is how a
+                # ~200 MB model turns into an out-of-memory kill. One thread, one arena.
+                # Embedding a single short document is not compute-bound anyway; the load is.
+                _model = TextEmbedding(
+                    model_name=MODEL_NAME,
+                    threads=1,
+                    providers=["CPUExecutionProvider"],
+                )
                 logger.info("Embedding model ready")
     return _model
 
@@ -76,6 +93,14 @@ def unload_model() -> None:
         _model = None
 
 
+class EmbeddingDisabledError(RuntimeError):
+    """Raised when embedding is switched off by configuration.
+
+    A distinct type so callers can tell "deliberately disabled" apart from "the model failed
+    to load", and log the second one loudly while treating the first as expected.
+    """
+
+
 def embed_texts(texts: list[str]) -> list[list[float]]:
     """Embed a batch of documents.
 
@@ -84,6 +109,12 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     """
     if not texts:
         return []
+
+    from app.core.config import get_settings
+
+    if not get_settings().embedding_enabled:
+        raise EmbeddingDisabledError("Embedding is disabled by configuration.")
+
     return [vector.tolist() for vector in get_model().embed(texts)]
 
 

@@ -201,3 +201,13 @@ export interface SkillPath extends LearningPath {
   /** Least-effort chain from something you already know to the target skill. */
   shortest_route: string[];
 }
+
+export interface SkillEdge {
+  prerequisite_id: string;
+  skill_id: string;
+}
+
+export interface SkillGraphData {
+  skills: Skill[];
+  edges: SkillEdge[];
+}

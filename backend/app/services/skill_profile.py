@@ -36,6 +36,10 @@ class SkillProfileService:
     async def list_vocabulary(self) -> list[Skill]:
         return await self._skills.list_all()
 
+    async def get_graph(self) -> tuple[list[Skill], list[tuple[uuid.UUID, uuid.UUID]]]:
+        """Every skill and every prerequisite edge, for rendering the graph itself."""
+        return await self._skills.list_all(), await self._skills.load_edges()
+
     async def get_profile(
         self, *, user_id: uuid.UUID
     ) -> tuple[list[UserSkill], list[UserSkill], list[UserSkill]]:

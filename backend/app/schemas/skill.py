@@ -64,3 +64,22 @@ class UpdateSkillRequest(BaseModel):
     # without changing status.
     status: SkillStatus | None = None
     proficiency: int | None = Field(default=None, ge=1, le=5)
+
+
+class SkillEdgeResponse(BaseModel):
+    """One prerequisite relation: `prerequisite_id` must be learned before `skill_id`."""
+
+    prerequisite_id: uuid.UUID
+    skill_id: uuid.UUID
+
+
+class SkillGraphResponse(BaseModel):
+    """The whole vocabulary and every edge between its members.
+
+    Returned in one payload rather than as two requests because the client cannot lay out
+    nodes without the edges, and cannot draw edges without the nodes -- splitting them only
+    guarantees a render with half the picture.
+    """
+
+    skills: list[SkillResponse]
+    edges: list[SkillEdgeResponse]
