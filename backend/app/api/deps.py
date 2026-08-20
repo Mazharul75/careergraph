@@ -18,13 +18,17 @@ from app.core.config import get_settings
 from app.core.security import TokenError, decode_access_token
 from app.db.session import get_db
 from app.models.user import User, UserRole
+from app.repositories.admin import AdminRepository
+from app.repositories.candidate import CandidateRepository
 from app.repositories.career_goal import CareerGoalRepository
 from app.repositories.job import JobRepository
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.resume import ResumeRepository
 from app.repositories.skill import SkillRepository, UserSkillRepository
 from app.repositories.user import UserRepository
+from app.services.admin import AdminService
 from app.services.auth import AuthService
+from app.services.candidates import CandidateService
 from app.services.goal import GoalService
 from app.services.job import JobService
 from app.services.learning_path import LearningPathService
@@ -171,6 +175,36 @@ def get_goal_service(
 
 
 GoalServiceDep = Annotated[GoalService, Depends(get_goal_service)]
+
+
+def get_candidate_repository(session: DbSession) -> CandidateRepository:
+    return CandidateRepository(session)
+
+
+def get_candidate_service(
+    jobs: Annotated[JobRepository, Depends(get_job_repository)],
+    candidates: Annotated[CandidateRepository, Depends(get_candidate_repository)],
+    resumes: ResumeRepo,
+) -> CandidateService:
+    return CandidateService(jobs=jobs, candidates=candidates, resumes=resumes)
+
+
+CandidateServiceDep = Annotated[CandidateService, Depends(get_candidate_service)]
+
+
+def get_admin_repository(session: DbSession) -> AdminRepository:
+    return AdminRepository(session)
+
+
+def get_admin_service(
+    session: DbSession,
+    admin_repo: Annotated[AdminRepository, Depends(get_admin_repository)],
+    users: UserRepo,
+) -> AdminService:
+    return AdminService(admin_repo=admin_repo, users=users, uow=session)
+
+
+AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
 
 
 def get_learning_path_service(

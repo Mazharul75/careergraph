@@ -5,8 +5,16 @@ import { use, useMemo } from "react";
 
 import { LearningPathView } from "@/components/LearningPathView";
 import { SkillRadar, buildRadarData } from "@/components/SkillRadar";
-import { Alert, Badge, Card, Meter, PageHeader, Spinner } from "@/components/ui";
-import { useJob, useLearningPath, useMatch, useSkillCatalogue } from "@/lib/queries";
+import { Alert, Badge, Button, Card, Meter, PageHeader, Spinner } from "@/components/ui";
+import { useAuth } from "@/lib/auth";
+import {
+  useCurrentGoal,
+  useJob,
+  useLearningPath,
+  useMatch,
+  useSetGoal,
+  useSkillCatalogue,
+} from "@/lib/queries";
 
 function scoreTone(score: number): "positive" | "brand" {
   return score >= 70 ? "positive" : "brand";
@@ -17,6 +25,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const { id } = use(params);
 
   const { data: job, isLoading: jobLoading, error } = useJob(id);
+  const { user } = useAuth();
+  const { data: goal } = useCurrentGoal();
+  const setGoal = useSetGoal();
+
+  const isTarget = goal?.job.id === id;
+  const canSeeCandidates =
+    (user?.role === "recruiter" || user?.role === "admin") && job?.created_by === user?.id;
   const { data: match, isLoading: matchLoading } = useMatch(id);
   const { data: path, isLoading: pathLoading } = useLearningPath(id);
   const { data: catalogue } = useSkillCatalogue();
@@ -48,7 +63,37 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       <PageHeader
         title={job.title}
         description={[job.company, job.location].filter(Boolean).join(" · ") || undefined}
-        action={job.is_public ? <Badge tone="brand">Public posting</Badge> : undefined}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            {job.is_public ? <Badge tone="brand">Public posting</Badge> : null}
+
+            {canSeeCandidates ? (
+              <Link href={`/jobs/${id}/candidates`}>
+                <Button variant="secondary" size="sm">
+                  View candidates
+                </Button>
+              </Link>
+            ) : null}
+
+            {isTarget ? (
+              <Badge tone="positive">Your target</Badge>
+            ) : goal ? (
+              // One active goal at a time is a product decision, not a limitation -- the
+              // whole value of a target is that it focuses attention.
+              <span className="text-xs text-[var(--color-muted)]">
+                Targeting {goal.job.title}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                disabled={setGoal.isPending}
+                onClick={() => setGoal.mutate(id)}
+              >
+                {setGoal.isPending ? "Setting…" : "Set as my goal"}
+              </Button>
+            )}
+          </div>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">

@@ -93,6 +93,24 @@ class GoalNotAchievedError(DomainError):
     message = "You have not reached this goal yet. Keep going."
 
 
+class UserNotFoundError(DomainError):
+    message = "No such user."
+
+
+class CannotSuspendYourselfError(DomainError):
+    """An operator locking themselves out is never the intent.
+
+    Recovering would need direct database access -- the exact situation an admin panel exists
+    to make unnecessary.
+    """
+
+    message = "You cannot suspend your own account."
+
+
+class CannotDemoteLastAdminError(DomainError):
+    message = "This is the only admin account. Promote someone else first."
+
+
 class SkillNotFoundError(DomainError):
     message = "No such skill."
 

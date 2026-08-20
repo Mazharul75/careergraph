@@ -3,8 +3,8 @@
 > **This is the handoff document.** Read it before your first reply in any session; update it
 > before writing any phase wrap-up. If it is stale, the next session starts blind.
 
-**Last updated:** Phase 8a (career goals backend), 2026-08-16
-**Branch:** `feat/skill-extraction` — **385 tests passing**
+**Last updated:** Phases 8-10 complete, 2026-08-16
+**Branch:** `feat/skill-extraction` — **399 tests passing**
 **Deployed:** API at `https://careergraph-api-f9n2.onrender.com`, frontend at
 `https://careergraph-fawn.vercel.app`. CD is green.
 
@@ -18,8 +18,12 @@ the deployed app surfaced three real gaps, all confirmed against the code:
    journey. Nothing a user did could change any number, so there was no reason to return.
 3. **No admin role exists at all** — `UserRole` is `job_seeker | recruiter`.
 
-**Next:** Phase 8b (journey-loop UI), then 9 (recruiter candidate ranking), 10 (admin role +
-dashboard), 11 (depth pages + UX pass).
+**Done since:** 8a/8b the journey loop (career goals, `learning` state, goal-centric dashboard,
+onboarding); 9 recruiter candidate ranking (`GET /jobs/{id}/candidates` + page); 10 the admin
+role (migration `0009`, `scripts/promote_admin.py`, `/api/v1/admin/*`, operator console).
+
+**Next:** Phase 11 — skill detail pages, a visual skill-graph explorer, job comparison, and a
+settings page. Not started.
 
 ---
 
@@ -132,6 +136,9 @@ database; integration need Postgres).
 | Maintenance | `workers/maintenance.py` — beat-scheduled token purge + stuck-resume requeue |
 | Delivery | `scripts/load_test.py`, `docs/DEMO.md`, `docs/INTERVIEW.md` |
 | Goals (Phase 8a) | `models/career_goal.py`, `repositories/career_goal.py`, `services/goal.py`, `api/v1/goals.py`, migration `0008` |
+| Journey UI (8b) | `components/GoalPanel.tsx`, reworked `dashboard/page.tsx`, learning section on `skills/page.tsx` |
+| Candidates (9) | `repositories/candidate.py`, `services/candidates.py`, `api/v1/candidates.py`, `jobs/[id]/candidates/page.tsx` |
+| Admin (10) | `repositories/admin.py`, `services/admin.py`, `api/v1/admin.py`, `scripts/promote_admin.py`, `admin/page.tsx`, migration `0009` |
 
 **API surface**
 

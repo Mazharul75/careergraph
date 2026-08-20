@@ -23,6 +23,7 @@ from app.models.resume import Resume
 from app.models.skill import Skill
 from app.models.user import User
 from app.models.user_skill import SkillStatus, UserSkill
+from app.repositories.candidate import CandidateProfile
 from app.services.skill_graph import GraphSkill
 from app.services.skill_matching import VocabularyEntry
 
@@ -82,6 +83,12 @@ class CareerGoalRepositoryProtocol(Protocol):
     ) -> list[CareerGoal]: ...
     def add(self, entity: CareerGoal) -> CareerGoal: ...
     async def delete(self, entity: CareerGoal) -> None: ...
+
+
+class CandidateRepositoryProtocol(Protocol):
+    async def load_candidate_profiles(
+        self, *, statuses: tuple[SkillStatus, ...], limit: int = 50
+    ) -> list[CandidateProfile]: ...
 
 
 class SkillRepositoryProtocol(Protocol):

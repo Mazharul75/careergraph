@@ -61,12 +61,16 @@ export default function SkillsPage() {
   const { data: catalogue } = useSkillCatalogue();
   const addSkill = useAddSkill();
   const confirmAll = useConfirmAllSkills();
+  // Also needed at page level: the "currently learning" list below marks skills learned,
+  // which is the same status change SkillRow performs for suggestions.
+  const update = useUpdateSkill();
   const [search, setSearch] = useState("");
 
   const owned = useMemo(() => {
     const ids = new Set<string>();
     profile?.confirmed.forEach((entry) => ids.add(entry.skill.id));
     profile?.suggested.forEach((entry) => ids.add(entry.skill.id));
+    profile?.learning.forEach((entry) => ids.add(entry.skill.id));
     return ids;
   }, [profile]);
 
@@ -123,6 +127,39 @@ export default function SkillsPage() {
         </Card>
 
         <div className="space-y-6">
+          {/* Learning sits above Confirmed because it is the list the user is acting on.
+              These skills deliberately do not count toward any score yet -- only marking one
+              learned moves the number. */}
+          {profile && profile.learning.length > 0 ? (
+            <Card>
+              <div className="flex items-center justify-between px-5 py-4">
+                <h2 className="text-sm font-semibold">Currently learning</h2>
+                <Badge tone="brand">{profile.total_learning}</Badge>
+              </div>
+              <ul className="border-t border-[var(--color-line)]">
+                {profile.learning.map((entry) => (
+                  <li
+                    key={entry.skill.id}
+                    className="flex items-center justify-between gap-3 px-5 py-3"
+                  >
+                    <span className="truncate text-sm">{entry.skill.canonical_name}</span>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        update.mutate({ skillId: entry.skill.id, status: "confirmed" })
+                      }
+                    >
+                      I&apos;ve learned this
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              <p className="border-t border-[var(--color-line)] px-5 py-3 text-xs text-[var(--color-muted)]">
+                Not counted toward your score until you mark them learned.
+              </p>
+            </Card>
+          ) : null}
+
           <Card>
             <div className="flex items-center justify-between px-5 py-4">
               <h2 className="text-sm font-semibold">Confirmed</h2>

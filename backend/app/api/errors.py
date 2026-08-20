@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse
 
 from app.services.exceptions import (
     ActiveGoalExistsError,
+    CannotDemoteLastAdminError,
+    CannotSuspendYourselfError,
     DomainError,
     EmailAlreadyRegisteredError,
     EmptyFileError,
@@ -31,6 +33,7 @@ from app.services.exceptions import (
     SkillNotInProfileError,
     TooManyPendingResumesError,
     UnsupportedFileTypeError,
+    UserNotFoundError,
 )
 from app.services.extraction import ExtractionError
 
@@ -69,6 +72,10 @@ _STATUS_BY_ERROR: dict[type[DomainError], int] = {
     # exists. The client's fix is to abandon the current goal, not to correct its payload.
     ActiveGoalExistsError: status.HTTP_409_CONFLICT,
     GoalNotAchievedError: status.HTTP_409_CONFLICT,
+    # --- Admin ---
+    UserNotFoundError: status.HTTP_404_NOT_FOUND,
+    CannotSuspendYourselfError: status.HTTP_409_CONFLICT,
+    CannotDemoteLastAdminError: status.HTTP_409_CONFLICT,
 }
 
 _AUTH_STATUSES = {status.HTTP_401_UNAUTHORIZED}

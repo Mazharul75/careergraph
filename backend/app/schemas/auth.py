@@ -22,6 +22,9 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: Password
     full_name: str | None = Field(default=None, max_length=200)
+    # Literal, not UserRole. This is the single line that stops anyone registering themselves
+    # as an admin: the enum has an ADMIN member, and accepting the bare enum here would let a
+    # crafted signup request claim it. Privilege is granted only by scripts/promote_admin.py.
     role: Literal[UserRole.JOB_SEEKER, UserRole.RECRUITER] = UserRole.JOB_SEEKER
 
     @field_validator("email")

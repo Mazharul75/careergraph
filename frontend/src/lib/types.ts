@@ -7,9 +7,9 @@
  * so the integration points are kept few and obvious.
  */
 
-export type UserRole = "job_seeker" | "recruiter";
+export type UserRole = "job_seeker" | "recruiter" | "admin";
 export type ParseStatus = "pending" | "processing" | "complete" | "failed";
-export type SkillStatus = "suggested" | "confirmed" | "rejected";
+export type SkillStatus = "suggested" | "confirmed" | "rejected" | "learning";
 export type SkillSource = "extracted" | "manual";
 
 export interface User {
@@ -39,8 +39,11 @@ export interface UserSkill {
 export interface SkillProfile {
   confirmed: UserSkill[];
   suggested: UserSkill[];
+  /** Skills the user does not have yet and is actively working on. */
+  learning: UserSkill[];
   total_confirmed: number;
   total_suggested: number;
+  total_learning: number;
 }
 
 export interface Resume {
@@ -117,4 +120,79 @@ export interface LearningPath {
   step_count: number;
   total_effort: number;
   unreachable: string[];
+}
+
+/* ------------------------------------------------------------------- career goals */
+
+/** A required skill, plus whether the user is currently working on it. */
+export interface GoalSkillGap extends SkillGap {
+  is_learning: boolean;
+}
+
+export interface GoalProgress {
+  id: string;
+  job: JobSummary;
+  created_at: string;
+  achieved_at: string | null;
+  /** The match score frozen at the moment the goal was set. Never changes. */
+  baseline_score: number;
+  current_score: number;
+  /** current_score - baseline_score. Negative is possible and honest. */
+  delta: number;
+  /** Progress toward the achievement threshold, 0-100, for the progress bar. */
+  readiness: number;
+  is_achievable_now: boolean;
+  matched: GoalSkillGap[];
+  missing: GoalSkillGap[];
+  learning_count: number;
+  semantic_available: boolean;
+}
+
+export interface Achievement {
+  id: string;
+  job: JobSummary;
+  baseline_score: number;
+  created_at: string;
+  achieved_at: string | null;
+}
+
+/* --------------------------------------------------------------- candidate ranking */
+
+export interface RankedCandidate {
+  user_id: string;
+  full_name: string | null;
+  score: number;
+  skill_coverage: number;
+  semantic_similarity: number;
+  matched: GoalSkillGap[];
+  missing: GoalSkillGap[];
+  has_resume: boolean;
+}
+
+/* -------------------------------------------------------------------------- admin */
+
+export interface SystemStats {
+  total_users: number;
+  job_seekers: number;
+  recruiters: number;
+  admins: number;
+  inactive_users: number;
+  total_jobs: number;
+  public_jobs: number;
+  total_resumes: number;
+  resumes_pending: number;
+  resumes_failed: number;
+  active_goals: number;
+  achieved_goals: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+  skill_count: number;
+  resume_count: number;
 }

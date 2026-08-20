@@ -7,10 +7,19 @@ import { useEffect } from "react";
 import { Button, Spinner } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 
-const NAV = [
+import type { UserRole } from "@/lib/types";
+
+/**
+ * Navigation is role-aware. `roles: undefined` means everyone sees it.
+ *
+ * Hiding a link is presentation, never protection -- the API enforces every one of these
+ * independently. Showing an admin a link they cannot use would be the real bug.
+ */
+const NAV: { href: string; label: string; roles?: UserRole[] }[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/skills", label: "My skills" },
   { href: "/jobs", label: "Jobs" },
+  { href: "/admin", label: "Admin", roles: ["admin"] },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -43,7 +52,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
 
           <nav aria-label="Main" className="flex items-center gap-1">
-            {NAV.map((item) => {
+            {NAV.filter((item) => !item.roles || item.roles.includes(user.role)).map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
