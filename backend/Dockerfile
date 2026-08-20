@@ -8,7 +8,7 @@
 # second stage keeps the shipped image small and removes build tooling from the attack
 # surface of what actually runs in production.
 # ---------------------------------------------------------------------------------------
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.12.3 /uv /uvx /bin/
 
@@ -42,7 +42,7 @@ RUN uv run python -c "from fastembed import TextEmbedding; TextEmbedding(model_n
 # ---------------------------------------------------------------------------------------
 # Stage 2 — runtime.
 # ---------------------------------------------------------------------------------------
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
