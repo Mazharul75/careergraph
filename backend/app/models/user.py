@@ -20,6 +20,9 @@ class UserRole(enum.StrEnum):
 
     JOB_SEEKER = "job_seeker"
     RECRUITER = "recruiter"
+    # Operators. Never granted by registration or by any API call -- only by
+    # scripts/promote_admin.py, run deliberately against the database.
+    ADMIN = "admin"
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):

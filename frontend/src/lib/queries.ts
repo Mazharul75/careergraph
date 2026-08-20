@@ -9,14 +9,20 @@ import {
 
 import { apiFetch } from "./api";
 import type {
+  Achievement,
+  AdminUser,
+  GoalProgress,
   Job,
   JobSummary,
   LearningPath,
   MatchResult,
   Resume,
+  RankedCandidate,
   Skill,
   SkillProfile,
   SkillStatus,
+  SystemStats,
+  UserRole,
 } from "./types";
 
 export const keys = {
@@ -28,6 +34,11 @@ export const keys = {
   job: (id: string) => ["jobs", id] as const,
   match: (id: string) => ["jobs", id, "match"] as const,
   path: (id: string) => ["jobs", id, "learning-path"] as const,
+  goal: ["goals", "current"] as const,
+  achievements: ["goals", "achievements"] as const,
+  candidates: (id: string) => ["jobs", id, "candidates"] as const,
+  adminStats: ["admin", "stats"] as const,
+  adminUsers: ["admin", "users"] as const,
 };
 
 /* -------------------------------------------------------------------------- resumes */
@@ -168,5 +179,141 @@ export function useLearningPath(jobId: string): UseQueryResult<LearningPath> {
   return useQuery({
     queryKey: keys.path(jobId),
     queryFn: () => apiFetch<LearningPath>(`/api/v1/jobs/${jobId}/learning-path`),
+  });
+}
+
+/* ------------------------------------------------------------------- career goals */
+
+export function useCurrentGoal(): UseQueryResult<GoalProgress | null> {
+  return useQuery({
+    queryKey: keys.goal,
+    // The endpoint returns null rather than 404 when no goal is set, because having no goal
+    // is a normal state for a new account — not an error the UI should have to catch.
+    queryFn: () => apiFetch<GoalProgress | null>("/api/v1/goals/current"),
+  });
+}
+
+export function useAchievements(): UseQueryResult<Achievement[]> {
+  return useQuery({
+    queryKey: keys.achievements,
+    queryFn: () => apiFetch<Achievement[]>("/api/v1/goals/achievements"),
+  });
+}
+
+export function useSetGoal() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) =>
+      apiFetch<GoalProgress>("/api/v1/goals", { method: "POST", body: { job_id: jobId } }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.goal }),
+  });
+}
+
+export function useAbandonGoal() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (goalId: string) =>
+      apiFetch<void>(`/api/v1/goals/${goalId}`, { method: "DELETE" }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.goal }),
+  });
+}
+
+export function useAchieveGoal() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (goalId: string) =>
+      apiFetch<Achievement>(`/api/v1/goals/${goalId}/achieve`, { method: "POST" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.goal });
+      void client.invalidateQueries({ queryKey: keys.achievements });
+    },
+  });
+}
+
+export function useStartLearning() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (skillId: string) =>
+      apiFetch("/api/v1/skills/me/learning", { method: "POST", body: { skill_id: skillId } }),
+    // Both the goal and the profile change: the goal gains an in-progress flag, the profile
+    // gains a learning entry. The score deliberately does not move.
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.goal });
+      void client.invalidateQueries({ queryKey: keys.profile });
+    },
+  });
+}
+
+export function useMarkLearned() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (skillId: string) =>
+      apiFetch(`/api/v1/skills/me/${skillId}`, { method: "PATCH", body: { status: "confirmed" } }),
+    // This is the one that moves the number, so every score-bearing cache is stale.
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.goal });
+      void client.invalidateQueries({ queryKey: keys.profile });
+      void client.invalidateQueries({ queryKey: keys.jobs });
+    },
+  });
+}
+
+/* --------------------------------------------------------------- candidate ranking */
+
+export function useCandidates(jobId: string, enabled: boolean): UseQueryResult<RankedCandidate[]> {
+  return useQuery({
+    queryKey: keys.candidates(jobId),
+    queryFn: () => apiFetch<RankedCandidate[]>(`/api/v1/jobs/${jobId}/candidates`),
+    // Only recruiters who own the posting may call this; asking as anyone else is a
+    // guaranteed 403/404, so the query is not even issued.
+    enabled,
+  });
+}
+
+/* -------------------------------------------------------------------------- admin */
+
+export function useSystemStats(enabled: boolean): UseQueryResult<SystemStats> {
+  return useQuery({
+    queryKey: keys.adminStats,
+    queryFn: () => apiFetch<SystemStats>("/api/v1/admin/stats"),
+    enabled,
+  });
+}
+
+export function useAdminUsers(enabled: boolean): UseQueryResult<AdminUser[]> {
+  return useQuery({
+    queryKey: keys.adminUsers,
+    queryFn: () => apiFetch<AdminUser[]>("/api/v1/admin/users"),
+    enabled,
+  });
+}
+
+export function useSetUserActive() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean }) =>
+      apiFetch<AdminUser>(`/api/v1/admin/users/${userId}/active`, {
+        method: "PATCH",
+        body: { is_active: isActive },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.adminUsers });
+      void client.invalidateQueries({ queryKey: keys.adminStats });
+    },
+  });
+}
+
+export function useSetUserRole() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: UserRole }) =>
+      apiFetch<AdminUser>(`/api/v1/admin/users/${userId}/role`, {
+        method: "PATCH",
+        body: { role },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.adminUsers });
+      void client.invalidateQueries({ queryKey: keys.adminStats });
+    },
   });
 }
