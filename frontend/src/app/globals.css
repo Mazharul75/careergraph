@@ -1,32 +1,99 @@
 @import "tailwindcss";
 
-/* Design tokens. A small, deliberate palette beats reaching for a different Tailwind colour
-   on every component — that is what makes an interface look assembled rather than designed. */
+/* ==========================================================================================
+   Design tokens.
+
+   A small, deliberate palette beats reaching for a different Tailwind colour on every
+   component — that is what makes an interface look designed rather than assembled.
+
+   The type system is a *pair*, not a pile: Plus Jakarta Sans carries headings (geometric,
+   slightly warm, distinctive at large sizes) and Inter carries everything else (unmatched
+   legibility at 13–16px, which is where an app actually lives). JetBrains Mono is reserved
+   for numerals that need to stay aligned — scores, percentages, counts — because tabular
+   figures stop a progress number from jittering as it changes.
+   ========================================================================================== */
 @theme {
-  --color-ink: #0b1120;
-  --color-slate-deep: #111827;
+  /* --- Neutrals -------------------------------------------------------------------------
+     Cool and faintly blue. Pure greys read as "document"; a blue tint reads as "software". */
+  --color-ink: #0f172a;
+  --color-ink-soft: #1e293b;
   --color-surface: #ffffff;
-  --color-canvas: #f6f8fb;
-  --color-line: #e3e8ef;
-  --color-muted: #5b6b84;
-  --color-brand: #2f5bea;
-  --color-brand-soft: #eaf0ff;
-  --color-positive: #0f9d6e;
-  --color-positive-soft: #e6f6f0;
+  --color-canvas: #f8fafc;
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+  --color-muted: #64748b;
+  --color-faint: #94a3b8;
+
+  /* --- Brand ----------------------------------------------------------------------------
+     Deep indigo. Confident without the "default bootstrap blue" association, and it holds
+     contrast against white at text sizes (4.5:1+), which a lighter blue does not. */
+  --color-brand: #4f46e5;
+  --color-brand-deep: #4338ca;
+  --color-brand-bright: #6366f1;
+  --color-brand-soft: #eef2ff;
+
+  /* --- Accent ---------------------------------------------------------------------------
+     Amber, sitting opposite indigo on the wheel. Reserved for progress and emphasis; never
+     used for chrome, so that when it appears the eye knows it means something. */
+  --color-accent: #d97706;
+  --color-accent-bright: #f59e0b;
+  --color-accent-soft: #fffbeb;
+
+  /* --- Semantic -------------------------------------------------------------------------- */
+  --color-positive: #059669;
+  --color-positive-soft: #ecfdf5;
   --color-warn: #b45309;
-  --color-warn-soft: #fdf3e7;
-  --color-danger: #d92d20;
-  --color-danger-soft: #fdecea;
+  --color-warn-soft: #fffbeb;
+  --color-danger: #e11d48;
+  --color-danger-soft: #fff1f2;
+
+  /* --- Type ------------------------------------------------------------------------------ */
+  --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", monospace;
+
+  /* --- Elevation --------------------------------------------------------------------------
+     Shadows tinted with the ink colour rather than pure black. Black shadows on a cool
+     background look muddy; a tinted shadow reads as depth. */
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.04);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 6px -2px rgb(15 23 42 / 0.04);
+  --shadow-lg: 0 16px 32px -12px rgb(15 23 42 / 0.14), 0 4px 10px -4px rgb(15 23 42 / 0.06);
+  --shadow-glow: 0 0 0 1px rgb(79 70 229 / 0.12), 0 12px 28px -10px rgb(79 70 229 / 0.32);
 }
 
 html {
   background: var(--color-canvas);
   color: var(--color-ink);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100dvh;
+}
+
+/* Headings carry the display face and a tighter tracking. Large text set at default tracking
+   looks loose and amateurish; the correction is what makes a hero headline feel typeset. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.022em;
+}
+
+h1 {
+  letter-spacing: -0.032em;
+}
+
+/* Numbers that change in place — scores, percentages, counts. Proportional digits shift
+   width as they change and make a live figure appear to twitch. */
+.tabular-figures {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 /* Visible focus for keyboard users. Removing outlines without replacing them is one of the
@@ -34,10 +101,66 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-deep);
+}
+
+/* --- Utilities used by the marketing surface ---------------------------------------------- */
+
+/* A soft radial wash behind the hero. Two offset gradients rather than one, so the colour
+   pools unevenly the way real light does — a single centred gradient reads as a CSS effect. */
+.hero-wash {
+  background:
+    radial-gradient(60rem 30rem at 15% -10%, rgb(99 102 241 / 0.16), transparent 60%),
+    radial-gradient(45rem 26rem at 92% 8%, rgb(217 119 6 / 0.1), transparent 62%),
+    linear-gradient(180deg, #ffffff 0%, var(--color-canvas) 100%);
+}
+
+.text-gradient {
+  background: linear-gradient(
+    100deg,
+    var(--color-brand-deep) 0%,
+    var(--color-brand-bright) 48%,
+    var(--color-accent) 130%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* A hairline grid, faded out at the edges. Gives large empty areas structure without
+   competing with content. */
+.grid-lines {
+  background-image:
+    linear-gradient(to right, rgb(148 163 184 / 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(148 163 184 / 0.16) 1px, transparent 1px);
+  background-size: 3.5rem 3.5rem;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {

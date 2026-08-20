@@ -78,6 +78,10 @@ services:
       # copy, so the deployed container does not depend on this mount existing.
       - ./backend/app:/app/app:ro
       - ./backend/alembic:/app/alembic:ro
+      # Operational scripts (promote_admin, load_test). Mounted as well as baked into the
+      # image so editing one does not need a rebuild -- the image copy is what production
+      # uses, this mount is purely a development convenience.
+      - ./backend/scripts:/app/scripts:ro
     command:
       - sh
       - -c

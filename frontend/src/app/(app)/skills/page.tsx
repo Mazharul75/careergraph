@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useMemo, useState } from "react";
 
 import { Badge, Button, Card, EmptyState, PageHeader, Input, Spinner } from "@/components/ui";
@@ -142,7 +144,12 @@ export default function SkillsPage() {
                     key={entry.skill.id}
                     className="flex items-center justify-between gap-3 px-5 py-3"
                   >
-                    <span className="truncate text-sm">{entry.skill.canonical_name}</span>
+                    <Link
+                      href={`/skills/${entry.skill.id}`}
+                      className="truncate text-sm hover:underline"
+                    >
+                      {entry.skill.canonical_name}
+                    </Link>
                     <Button
                       size="sm"
                       onClick={() =>
