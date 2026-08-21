@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import Select, delete, or_, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 
 from app.models.job import Job, JobSkill
 from app.repositories.base import BaseRepository
@@ -26,10 +26,24 @@ class JobRepository(BaseRepository[Job]):
 
         Visibility is part of the WHERE clause rather than a check after loading — the same
         reasoning as resumes. A forgotten branch after the fact is how private data leaks.
+
+        ``undefer(Job.embedding)`` is load-bearing. The column is deferred, so scoring code
+        that reads ``job.embedding`` triggers lazy I/O — which in async SQLAlchemy is not
+        merely slow, it raises MissingGreenlet. This stayed hidden for a long time because
+        every caller short-circuits on the *resume* embedding first: with no embedded resume
+        in the database, ``job.embedding`` was never reached. The moment real resumes finished
+        embedding, every match and every candidate ranking started returning 500.
+
+        Only on the single-job read. ``list_visible`` deliberately leaves it deferred — a list
+        page has no use for 384 floats per row.
         """
-        stmt = _with_skills().where(
-            Job.id == job_id,
-            or_(Job.created_by == user_id, Job.is_public.is_(True)),
+        stmt = (
+            _with_skills()
+            .options(undefer(Job.embedding))
+            .where(
+                Job.id == job_id,
+                or_(Job.created_by == user_id, Job.is_public.is_(True)),
+            )
         )
         result = await self._session.execute(stmt)
         return result.unique().scalar_one_or_none()

@@ -4,7 +4,7 @@
 > before writing any phase wrap-up. If it is stale, the next session starts blind.
 
 **Last updated:** Phases 8-11 complete + OOM hardening, 2026-08-21
-**Branch:** `feat/skill-extraction` — **403 tests passing**
+**Branch:** `feat/skill-extraction` — **405 tests passing**
 **Deployed:** API at `https://careergraph-api-f9n2.onrender.com`, frontend at
 `https://careergraph-fawn.vercel.app`. CD is green.
 
@@ -141,7 +141,7 @@ database; integration need Postgres).
 | Security | `core/rate_limit.py` (Redis fixed window), `api/rate_limit.py` (dependency), `docs/security.md` |
 | Observability | `core/logging.py` (structlog), `api/middleware.py` (request IDs), Sentry init in `main.py` |
 | Maintenance | `workers/maintenance.py` — beat-scheduled token purge + stuck-resume requeue |
-| Delivery | `scripts/load_test.py`, `docs/DEMO.md`, `docs/INTERVIEW.md` |
+| Delivery | `scripts/load_test.py`, `scripts/seed_demo.py`, `docs/DEMO.md`, `docs/INTERVIEW.md` |
 | Goals (Phase 8a) | `models/career_goal.py`, `repositories/career_goal.py`, `services/goal.py`, `api/v1/goals.py`, migration `0008` |
 | Journey UI (8b) | `components/GoalPanel.tsx`, reworked `dashboard/page.tsx`, learning section on `skills/page.tsx` |
 | Candidates (9) | `repositories/candidate.py`, `services/candidates.py`, `api/v1/candidates.py`, `jobs/[id]/candidates/page.tsx` |
@@ -241,6 +241,30 @@ within six steps from scratch.
 - Refresh tokens are single-use; concurrent 401s each calling `/auth/refresh` would trip the
   backend's own reuse detection and sign the user out. `api.ts` uses a **single-flight** guard.
 - eslint-config-next v16 ships flat configs — `FlatCompat` crashes.
+
+### The bug the seed data found (2026-08-21) — deferred columns in async SQLAlchemy
+`scripts/seed_demo.py` created five job seekers with real parsed resumes, and every
+`/jobs/{id}/candidates` and `/jobs/{id}/match` call immediately returned **500
+MissingGreenlet**. 400+ tests were green the whole time.
+
+`Job.embedding` and `Resume.embedding` are both `deferred()`. `ResumeRepository`
+already called `undefer()` — with a comment explaining exactly this trap — but
+`JobRepository.get_visible` did not. Reading `job.embedding` therefore triggered lazy I/O,
+which in async SQLAlchemy raises rather than merely being slow.
+
+**Why no test caught it.** Every caller reads the resume embedding first:
+
+```python
+if resume is not None and resume.embedding is not None and job.embedding is not None:
+```
+
+Python short-circuits left to right. No test resume ever had an embedding, so the third
+term was never evaluated and the deferred column was never touched. The bug was invisible
+until a *real* worker finished a *real* embedding — i.e. only in production.
+
+**The lesson:** a short-circuit that is always taken in tests hides everything to its right.
+Fixtures that skip the expensive part of the pipeline skip its bugs too. Two regression tests
+now insert an embedding directly and assert 200 on both endpoints.
 
 ### Second production OOM (2026-08-20) — and why the ADR-0012 split still paid off
 `Exited with status 137` on Render after a resume upload. Read the timeline before concluding

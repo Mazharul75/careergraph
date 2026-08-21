@@ -257,3 +257,60 @@ class TestAdminActions:
         )
 
         assert response.status_code == 409
+
+
+class TestScoringWithEmbeddedResumes:
+    """Regression: every scoring path once a resume actually has an embedding.
+
+    The original candidate-ranking tests passed while being blind to a 500, because no test
+    resume ever had an embedding — and every caller checks the *resume* embedding before it
+    reads ``job.embedding``. With that short-circuit always taken, the deferred column on Job
+    was never touched. In production, the moment the worker finished its first embedding,
+    both ``/match`` and ``/candidates`` began returning 500.
+
+    Setting an embedding directly here, rather than running the real model, keeps the test
+    fast and deterministic while exercising the exact code path that broke.
+    """
+
+    @staticmethod
+    async def _give_resume_an_embedding(session: AsyncSession, user_email: str) -> None:
+        vector = "[" + ",".join(["0.05"] * 384) + "]"
+        await session.execute(
+            text(
+                "INSERT INTO resumes (id, user_id, original_filename, content_type, "
+                "size_bytes, status, extracted_text, embedding) "
+                "SELECT gen_random_uuid(), id, 'demo.pdf', 'application/pdf', 1024, "
+                "'complete', 'Python PostgreSQL Docker', CAST(:vec AS vector) "
+                "FROM users WHERE email = :email"
+            ),
+            {"vec": vector, "email": user_email},
+        )
+        await session.commit()
+
+    async def test_match_works_when_the_resume_is_embedded(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        headers, email = await register(client)
+        job_id = await create_job(client, headers)
+        await self._give_resume_an_embedding(db_session, email)
+
+        response = await client.get(f"{JOBS}/{job_id}/match", headers=headers)
+
+        assert response.status_code == 200, response.text
+
+    async def test_candidate_ranking_works_when_resumes_are_embedded(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        candidate, candidate_email = await register(client)
+        python = next(
+            s for s in (await client.get(SKILLS)).json() if s["canonical_name"] == "Python"
+        )
+        await client.post(f"{SKILLS}/me", json={"skill_id": python["id"]}, headers=candidate)
+        await self._give_resume_an_embedding(db_session, candidate_email)
+
+        recruiter, _ = await register(client, role="recruiter")
+        job_id = await create_job(client, recruiter, public=True)
+
+        response = await client.get(f"{JOBS}/{job_id}/candidates", headers=recruiter)
+
+        assert response.status_code == 200, response.text
