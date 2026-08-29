@@ -46,6 +46,34 @@ new password accepted.
 **Still open, explicitly:** real Postgres RLS, Playwright/Vitest frontend tests, a
 page-by-page UX audit beyond this pass. See the closing summary for what's next.
 
+### Two production incidents from real use (2026-08-30)
+
+**1. Resend's sandbox sender can only deliver to the account owner's own inbox.** A real
+user registering with any other address got a silent, permanent dead end — no error visible
+to them, `logger.exception` fired but only status code was logged, no clue why. Every
+transactional email provider's free/sandbox tier has this exact restriction (it's the
+anti-spam mechanism, not a bug), so it's not avoidable without a verified domain. Fixed two
+ways: (1) `ResendEmailSender` now logs the full response body, not just the status code, so
+the *next* failure of any kind is diagnosable in one look; (2) added
+`AdminService.verify_email` — a genuine escape hatch, not a workaround, that lets an admin
+vouch for an account directly. Verified live: a stuck account went from "confirm your
+email" purgatory to a working login in one console click.
+
+**2. `FRONTEND_URL` silently defaulting to localhost in production.** Sent a real password
+reset email pointing at `localhost:3000` — the send succeeded, so nothing looked wrong until
+a real person clicked it. Root cause still unconfirmed (either the Render env var never took,
+or the email was sent before it was set) — but either way, this should never again be
+possible to ship silently. Added `_reject_localhost_frontend_url_outside_development`,
+mirroring the existing `JWT_SECRET_KEY` startup guard exactly: `environment in ("staging",
+"production")` + `"localhost" in frontend_url` now refuses to boot at all, with a message
+naming the fix. Verified both directions with a standalone `Settings(_env_file=None)` call.
+
+**Also fixed:** `verify_email`/`reset_password` returned one generic "invalid or expired"
+message for three different situations (never existed / already used / actually expired).
+Differentiated safely — the token is a private secret already known only to its one
+recipient, so naming which of the three happened to *their own* link leaks nothing about
+anyone else. +9 tests across both incidents (454 → 463).
+
 ---
 
 ## 1. The system at a glance

@@ -237,6 +237,25 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET_KEY must be at least 32 characters.")
         return self
 
+    @model_validator(mode="after")
+    def _reject_localhost_frontend_url_outside_development(self) -> Settings:
+        """Fail startup rather than email real users a link to someone's own laptop.
+
+        Verification and password-reset links are built from ``frontend_url``. Leaving it at
+        the local default in a real deployment does not error anywhere obvious — the emails
+        still send successfully, so the first sign anything is wrong is a confused user
+        reporting that the link in their inbox does not go anywhere real. Catching it at boot,
+        the same way a weak JWT secret is caught, turns that into an immediate, loud, fixable
+        deploy failure instead of a silently broken feature in production.
+        """
+        if self.environment in ("staging", "production") and "localhost" in self.frontend_url:
+            raise ValueError(
+                "FRONTEND_URL is still pointing at localhost. Set it to this deployment's "
+                "real public frontend URL (e.g. https://your-app.vercel.app), with no "
+                "trailing slash."
+            )
+        return self
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def is_production(self) -> bool:
