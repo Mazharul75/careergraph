@@ -62,7 +62,12 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 async def register_and_login(client: AsyncClient, role: str = "job_seeker") -> dict[str, str]:
     email = f"{role}-{uuid.uuid4().hex[:8]}@example.com"
-    await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD, "role": role})
+    registered = await client.post(
+        f"{AUTH}/register", json={"email": email, "password": PASSWORD, "role": role}
+    )
+    await client.post(
+        f"{AUTH}/verify-email", json={"token": registered.json()["dev_verification_token"]}
+    )
     tokens = (
         await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
     ).json()

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import enum
+from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Enum, String, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -39,10 +40,25 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # "one account per address" a database guarantee rather than an application hope.
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
 
-    # Populated in Phase 1b. Sized for Argon2id output, which is longer than bcrypt's 60 chars.
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Nullable, deliberately: an account created through Google Sign-In has no password at
+    # all, not an unusable placeholder one. `AuthService.login` treats a null hash as "this
+    # account cannot authenticate by password" and refuses with the same generic error used
+    # for a wrong password, so the distinction never leaks to a caller.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    # Null until the address is confirmed. Set by clicking an emailed link, or immediately at
+    # creation for a Google account — Google has already proven mailbox ownership, so making
+    # the user repeat that proof would be friction with no security benefit.
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Google's stable, unique subject identifier for the account (the `sub` claim of its ID
+    # tokens). Never the email address: a person can change the email tied to a Google
+    # account, and `sub` is the one value guaranteed to keep pointing at the same identity.
+    google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
 
     role: Mapped[UserRole] = mapped_column(
         Enum(
@@ -69,6 +85,20 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         # row if it ever forgets. Without this, "A@x.com" and "a@x.com" become two accounts.
         CheckConstraint("email = lower(email)", name="email_is_lowercase"),
     )
+
+    @property
+    def email_verified(self) -> bool:
+        return self.email_verified_at is not None
+
+    @property
+    def has_password(self) -> bool:
+        """Whether this account can authenticate with a password at all.
+
+        False for a Google-only account. Exists as a named property rather than an inline
+        ``is not None`` check so every call site reads as an intent, not an implementation
+        detail of how OAuth-only accounts happen to be represented.
+        """
+        return self.password_hash is not None
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<User id={self.id} email={self.email!r} role={self.role.value}>"

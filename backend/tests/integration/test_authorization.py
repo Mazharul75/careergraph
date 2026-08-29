@@ -61,7 +61,14 @@ async def guarded_client(app_with_guarded_routes: FastAPI) -> AsyncGenerator[Asy
 
 
 async def token_for(client: AsyncClient, email: str, role: str) -> str:
-    await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD, "role": role})
+    registered = await client.post(
+        f"{AUTH}/register", json={"email": email, "password": PASSWORD, "role": role}
+    )
+    # Login now requires a verified address; the dev-mode token in the register response
+    # (local/ci only) is what lets a test complete that without an inbox.
+    await client.post(
+        f"{AUTH}/verify-email", json={"token": registered.json()["dev_verification_token"]}
+    )
     response = await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
     token: str = response.json()["access_token"]
     return token

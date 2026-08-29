@@ -59,7 +59,10 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 async def login(client: AsyncClient) -> dict[str, str]:
     email = f"path-{uuid.uuid4().hex[:8]}@example.com"
-    await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD})
+    registered = await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD})
+    await client.post(
+        f"{AUTH}/verify-email", json={"token": registered.json()["dev_verification_token"]}
+    )
     response = await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 

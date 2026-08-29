@@ -37,6 +37,13 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# The user's own shell is cmd.exe (see CLAUDE.md), whose default codepage is cp1252 — it
+# cannot encode "→" or "✓" and raises UnicodeEncodeError partway through printing the
+# summary, after every real piece of work below has already succeeded. Reconfiguring stdout
+# to UTF-8 fixes this regardless of the terminal's active codepage, on every platform.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 DEMO_PASSWORD = "CareerGraph-Demo-2026"  # noqa: S105 - throwaway accounts on a demo deployment
 
 
@@ -266,6 +273,24 @@ class Api:
             )
         if response.status_code not in (201, 409):
             raise SystemExit(f"register failed for {email}: {response.status_code} {response.text}")
+
+        if response.status_code == 201:
+            # New accounts start unverified and cannot log in yet. The dev-mode token this
+            # deployment hands back (local/ci only — see Settings.exposes_dev_verification_tokens)
+            # is what lets this script complete the real /verify-email flow instead of a
+            # backdoor that skips it. A 409 means the account survived a previous run of this
+            # script and is already verified, so there is nothing to redeem here.
+            dev_token = response.json().get("dev_verification_token")
+            if not dev_token:
+                raise SystemExit(
+                    f"No dev_verification_token in the register response for {email}.\n"
+                    "This deployment's ENVIRONMENT is not 'local' or 'ci', so this script "
+                    "cannot verify the account for you — confirm it from the email that was "
+                    "actually sent, or set RESEND_API_KEY so one goes out."
+                )
+            verify = self.client.post("/api/v1/auth/verify-email", json={"token": dev_token})
+            if verify.status_code != 200:
+                raise SystemExit(f"verify failed for {email}: {verify.status_code} {verify.text}")
 
         login = self.client.post(
             "/api/v1/auth/login", json={"email": email, "password": DEMO_PASSWORD}

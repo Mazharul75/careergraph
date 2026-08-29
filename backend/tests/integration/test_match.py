@@ -67,7 +67,12 @@ async def client(
 
 async def login(client: AsyncClient, role: str = "job_seeker") -> dict[str, str]:
     email = f"match-{uuid.uuid4().hex[:8]}@example.com"
-    await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD, "role": role})
+    registered = await client.post(
+        f"{AUTH}/register", json={"email": email, "password": PASSWORD, "role": role}
+    )
+    await client.post(
+        f"{AUTH}/verify-email", json={"token": registered.json()["dev_verification_token"]}
+    )
     response = await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

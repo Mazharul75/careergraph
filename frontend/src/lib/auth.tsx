@@ -12,15 +12,22 @@ import {
 } from "react";
 
 import { apiFetch, restoreSession, tokens, type TokenPair } from "./api";
-import type { User, UserRole } from "./types";
+import type { ForgotPasswordResult, RegisterResult, User, UserRole } from "./types";
 
 interface AuthState {
   user: User | null;
   /** True until the initial session restore settles. Guards against a redirect-to-login flash. */
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
+  /** Does not sign the account in — an unverified account cannot get a session yet. The
+   * caller (the register page) reads the result to show a "check your email" screen. */
+  register: (input: RegisterInput) => Promise<RegisterResult>;
   logout: () => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<ForgotPasswordResult>;
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
+  googleSignIn: (idToken: string) => Promise<void>;
 }
 
 export interface RegisterInput {
@@ -78,18 +85,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyTokens, router],
   );
 
-  const register = useCallback(
-    async (input: RegisterInput) => {
-      await apiFetch<User>("/api/v1/auth/register", {
-        method: "POST",
-        body: input,
-        anonymous: true,
-      });
-      // Registration deliberately does not return tokens, so sign in as a second step.
-      await login(input.email, input.password);
-    },
-    [login],
-  );
+  const register = useCallback(async (input: RegisterInput): Promise<RegisterResult> => {
+    // Deliberately does not sign in afterward. A freshly registered account cannot pass the
+    // login gate until its email is verified, so the only honest next step is the "check
+    // your email" screen the register page shows from this return value.
+    return apiFetch<RegisterResult>("/api/v1/auth/register", {
+      method: "POST",
+      body: input,
+      anonymous: true,
+    });
+  }, []);
 
   const logout = useCallback(async () => {
     const refresh = tokens.getRefresh();
@@ -110,9 +115,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [router]);
 
+  const verifyEmail = useCallback(async (token: string) => {
+    await apiFetch<User>("/api/v1/auth/verify-email", {
+      method: "POST",
+      body: { token },
+      anonymous: true,
+    });
+  }, []);
+
+  const resendVerification = useCallback(async (email: string) => {
+    // Always 204 regardless of what actually happened server-side — see the API docstring.
+    await apiFetch<void>("/api/v1/auth/resend-verification", {
+      method: "POST",
+      body: { email },
+      anonymous: true,
+    });
+  }, []);
+
+  const forgotPassword = useCallback(async (email: string): Promise<ForgotPasswordResult> => {
+    return apiFetch<ForgotPasswordResult>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+      anonymous: true,
+    });
+  }, []);
+
+  const resetPassword = useCallback(async (token: string, newPassword: string) => {
+    await apiFetch<User>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: { token, new_password: newPassword },
+      anonymous: true,
+    });
+    // A reset revokes every session server-side, including any this browser might still
+    // hold — clearing locally keeps the two in sync rather than leaving a dead refresh
+    // token sitting in storage until it fails on its own.
+    tokens.clear();
+  }, []);
+
+  const googleSignIn = useCallback(
+    async (idToken: string) => {
+      const pair = await apiFetch<TokenPair>("/api/v1/auth/google", {
+        method: "POST",
+        body: { id_token: idToken },
+        anonymous: true,
+      });
+      await applyTokens(pair);
+      router.push("/dashboard");
+    },
+    [applyTokens, router],
+  );
+
   const value = useMemo(
-    () => ({ user, loading, login, register, logout }),
-    [user, loading, login, register, logout],
+    () => ({
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      verifyEmail,
+      resendVerification,
+      forgotPassword,
+      resetPassword,
+      googleSignIn,
+    }),
+    [
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      verifyEmail,
+      resendVerification,
+      forgotPassword,
+      resetPassword,
+      googleSignIn,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -89,3 +89,69 @@ class UserResponse(BaseModel):
     full_name: str | None
     role: UserRole
     is_active: bool
+    email_verified: bool
+    # Whether this account can sign in with a password at all — false for a Google-only
+    # account. Lets the frontend hide "change password" for an account that has none.
+    has_password: bool
+
+
+class RegisterResponse(UserResponse):
+    """What ``POST /auth/register`` returns.
+
+    ``dev_verification_token`` is the raw token that would otherwise only ever reach the user
+    through an email — present only when ``Settings.exposes_dev_verification_tokens`` is true
+    (local and CI), never in staging or production. See the field's own note in
+    ``app/core/config.py``.
+    """
+
+    dev_verification_token: str | None = Field(
+        default=None,
+        description="Local/CI only. Lets tests and the demo seeder verify without an inbox.",
+    )
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def normalise_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def normalise_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Always the same shape, whether or not the address exists — see the route docstring."""
+
+    dev_reset_token: str | None = Field(
+        default=None,
+        description="Local/CI only. Lets tests reset a password without an inbox.",
+    )
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+    new_password: Password
+
+
+class GoogleAuthRequest(BaseModel):
+    """The ID token Google Identity Services hands the frontend after a successful sign-in.
+
+    Nothing else is accepted from the client — email, name, and account id are all read back
+    out of the token itself once its signature is verified, never taken from the request body.
+    A client-supplied email here would let anyone claim any address.
+    """
+
+    id_token: str = Field(min_length=1, max_length=4096)

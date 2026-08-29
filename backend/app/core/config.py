@@ -145,6 +145,51 @@ class Settings(BaseSettings):
     # is a better outage than a container that dies on every upload.
     embedding_enabled: bool = True
 
+    # --- Email verification --------------------------------------------------------------
+    # Both optional, and the feature degrades in one specific, safe way when either is unset:
+    # a real email is never sent, but the raw token is still generated and stored, and the
+    # verify endpoint still works against it. In `local`/`ci`, the register response then
+    # includes the raw token directly (never in staging/production — see
+    # `AuthService.register`), which is what lets tests and the demo seeder complete real
+    # verification without an inbox.
+    resend_api_key: SecretStr | None = None
+    email_from: str = "CareerGraph <onboarding@resend.dev>"
+    # The domain the verification link points at. Must be set explicitly in production —
+    # there is no way to guess a deployment's public frontend URL from inside the container.
+    frontend_url: str = "http://localhost:3000"
+    email_verification_token_expire_hours: int = 24
+    # Deliberately much shorter than email verification: this link grants control of the
+    # account outright, not merely a confirmation, so its window of usefulness to an attacker
+    # who intercepts it must be as small as normal usability allows.
+    password_reset_token_expire_hours: int = 1
+
+    # --- Google Sign-In ---------------------------------------------------------------------
+    # Unset means the feature is off: `/auth/google` answers 503 rather than crashing on a
+    # None client id, and the frontend simply does not render the button. The audience check
+    # inside Google's own token verification is what makes this safe to expose publicly —
+    # only an ID token minted *for this exact client id* is ever accepted.
+    google_client_id: str | None = None
+
+    # --- Rate limiting: the newer credential-adjacent endpoints ----------------------------
+    # Verification tokens are 256 random bits, not guessable, but every unauthenticated
+    # endpoint gets a bound regardless (ADR-0011) — cheap insurance against blunt abuse.
+    rate_limit_verify_email: int = 20
+    rate_limit_verify_email_window_seconds: int = 3600
+    # Tighter: this one triggers an email send, which has a real cost and is a spam vector.
+    rate_limit_resend_verification: int = 5
+    rate_limit_resend_verification_window_seconds: int = 3600
+    # Generous: this is where every legitimate "Continue with Google" click lands.
+    rate_limit_google_auth: int = 30
+    rate_limit_google_auth_window_seconds: int = 300
+    # Tight, like resend-verification: triggers an email and is a natural target for
+    # harassment ("spam someone's inbox with reset links").
+    rate_limit_forgot_password: int = 5
+    rate_limit_forgot_password_window_seconds: int = 3600
+    # Looser than forgot-password: this is where a legitimate user retries a mistyped new
+    # password, and the token itself (256 random bits) is the real access control here.
+    rate_limit_reset_password: int = 20
+    rate_limit_reset_password_window_seconds: int = 3600
+
     # --- Background maintenance -------------------------------------------------------
     # A resume still `pending` after this long has fallen through the crack between the
     # database commit and the queue write (see the dispatcher); the sweeper re-enqueues it.
@@ -196,6 +241,18 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def exposes_dev_verification_tokens(self) -> bool:
+        """Whether ``/auth/register`` is allowed to return the raw verification token.
+
+        True only in ``local`` and ``ci``. This is what lets integration tests and
+        ``scripts/seed_demo.py`` complete real email verification — hitting the actual
+        ``/auth/verify-email`` endpoint with a real token — without an inbox, while staying
+        false in every environment a real user's email could be read from.
+        """
+        return self.environment in ("local", "ci")
 
     @computed_field  # type: ignore[prop-decorator]
     @property

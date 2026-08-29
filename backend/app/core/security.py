@@ -166,28 +166,36 @@ def decode_access_token(token: str) -> AccessTokenPayload:
 
 
 # --------------------------------------------------------------------------------------
-# Refresh tokens (opaque)
+# Opaque tokens (refresh tokens, email-verification links, and anything else that is a
+# random secret rather than something signed)
 # --------------------------------------------------------------------------------------
 
 
-def generate_refresh_token() -> tuple[str, str]:
-    """Create a refresh token, returning ``(raw_token, token_hash)``.
+def generate_opaque_token() -> tuple[str, str]:
+    """Create a random single-use token, returning ``(raw_token, token_hash)``.
 
-    The raw value is returned to the client exactly once and never stored. Only the hash is
-    persisted, so a stolen database dump contains nothing that can be presented as a token.
+    The raw value is returned to the caller exactly once and never stored. Only the hash is
+    persisted, so a stolen database dump contains nothing that can be presented as a token —
+    true of refresh tokens and equally true of an emailed verification link.
     """
     raw = secrets.token_urlsafe(32)  # 256 bits of entropy
-    return raw, hash_refresh_token(raw)
+    return raw, hash_opaque_token(raw)
 
 
-def hash_refresh_token(raw_token: str) -> str:
-    """Hash a refresh token for storage and lookup.
+def hash_opaque_token(raw_token: str) -> str:
+    """Hash an opaque token for storage and lookup.
 
     Plain SHA-256, not Argon2, and that is correct here: slow hashing exists to make guessing
     *low-entropy human passwords* expensive. This token is 256 random bits — it cannot be
-    guessed at any speed — and refresh lookups must be fast enough to sit on the hot path.
+    guessed at any speed — and lookups must be fast enough to sit on the hot path.
     """
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+# Names kept for every existing call site. Refresh tokens were the first opaque token in the
+# system, so the generic implementation above lives under the name every import already uses.
+generate_refresh_token = generate_opaque_token
+hash_refresh_token = hash_opaque_token
 
 
 def refresh_token_expiry() -> datetime:

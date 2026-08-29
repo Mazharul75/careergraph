@@ -69,7 +69,10 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
 @pytest.fixture
 async def auth_headers(client: AsyncClient) -> dict[str, str]:
     email = f"resume-{uuid.uuid4().hex[:8]}@example.com"
-    await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD})
+    registered = await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD})
+    await client.post(
+        f"{AUTH}/verify-email", json={"token": registered.json()["dev_verification_token"]}
+    )
     tokens = (
         await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
     ).json()
@@ -179,7 +182,13 @@ class TestStatusPolling:
         await client.post(RESUMES, headers=auth_headers, files=pdf_upload("mine.pdf"))
 
         other_email = f"other-{uuid.uuid4().hex[:8]}@example.com"
-        await client.post(f"{AUTH}/register", json={"email": other_email, "password": PASSWORD})
+        other_registered = await client.post(
+            f"{AUTH}/register", json={"email": other_email, "password": PASSWORD}
+        )
+        await client.post(
+            f"{AUTH}/verify-email",
+            json={"token": other_registered.json()["dev_verification_token"]},
+        )
         other_tokens = (
             await client.post(f"{AUTH}/login", json={"email": other_email, "password": PASSWORD})
         ).json()
@@ -198,7 +207,13 @@ class TestStatusPolling:
         ]
 
         other_email = f"other-{uuid.uuid4().hex[:8]}@example.com"
-        await client.post(f"{AUTH}/register", json={"email": other_email, "password": PASSWORD})
+        other_registered = await client.post(
+            f"{AUTH}/register", json={"email": other_email, "password": PASSWORD}
+        )
+        await client.post(
+            f"{AUTH}/verify-email",
+            json={"token": other_registered.json()["dev_verification_token"]},
+        )
         other_tokens = (
             await client.post(f"{AUTH}/login", json={"email": other_email, "password": PASSWORD})
         ).json()

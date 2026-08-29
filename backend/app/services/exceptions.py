@@ -40,6 +40,34 @@ class InactiveAccountError(DomainError):
     message = "This account has been deactivated."
 
 
+class EmailNotVerifiedError(DomainError):
+    """Credentials were correct; the account just is not usable yet.
+
+    Distinct from InvalidCredentialsError on purpose: the frontend needs to tell these two
+    apart to offer "resend the verification email" instead of "check your password" — and
+    unlike a wrong password, this is not something worth hiding from the caller, because the
+    caller already proved they know the password.
+    """
+
+    message = "Please verify your email address before signing in."
+
+
+class InvalidVerificationTokenError(DomainError):
+    message = "That verification link is invalid or has expired."
+
+
+class InvalidPasswordResetTokenError(DomainError):
+    message = "That password reset link is invalid or has expired."
+
+
+class GoogleSignInNotConfiguredError(DomainError):
+    message = "Google Sign-In is not configured on this deployment."
+
+
+class GoogleTokenInvalidError(DomainError):
+    message = "Could not verify that Google sign-in. Please try again."
+
+
 class InvalidRefreshTokenError(DomainError):
     message = "Refresh token is invalid or has expired."
 

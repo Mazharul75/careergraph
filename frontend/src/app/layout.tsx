@@ -34,6 +34,9 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  // Lets Next.js turn the relative paths in openGraph/icon metadata into absolute URLs.
+  // Falls back to localhost for dev; set NEXT_PUBLIC_APP_URL to the real domain in production.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: {
     default: "CareerGraph — turn a job posting into a study plan",
     template: "%s · CareerGraph",

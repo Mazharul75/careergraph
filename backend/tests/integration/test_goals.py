@@ -57,7 +57,10 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 async def register_and_login(client: AsyncClient) -> dict[str, str]:
     email = f"goal-{uuid.uuid4().hex[:8]}@example.com"
-    await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD})
+    registered = await client.post(f"{AUTH}/register", json={"email": email, "password": PASSWORD})
+    await client.post(
+        f"{AUTH}/verify-email", json={"token": registered.json()["dev_verification_token"]}
+    )
     tokens = (
         await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
     ).json()
