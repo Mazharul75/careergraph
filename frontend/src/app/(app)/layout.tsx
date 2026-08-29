@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import { Logo } from "@/components/Logo";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -49,11 +51,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-40 border-b border-[var(--color-line)] bg-[var(--color-surface)]/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3.5">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-[var(--color-brand)] font-display text-xs font-bold text-white">
-              C
-            </span>
-            <span className="font-display text-sm font-bold tracking-tight">CareerGraph</span>
+          <Link href="/dashboard">
+            <Logo size="sm" />
           </Link>
 
           <nav aria-label="Main" className="flex items-center gap-1">

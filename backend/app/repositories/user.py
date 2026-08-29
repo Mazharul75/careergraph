@@ -34,3 +34,10 @@ class UserRepository(BaseRepository[User]):
         stmt = select(User.id).where(User.email == email.strip().lower()).limit(1)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none() is not None
+
+    async def get_by_google_sub(self, google_sub: str) -> User | None:
+        """The fast path for a returning Google user: look up by Google's stable subject id
+        rather than by email, which a person can change on either side of the link."""
+        stmt = select(User).where(User.google_sub == google_sub)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()

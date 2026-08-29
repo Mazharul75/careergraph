@@ -14,15 +14,19 @@
    ========================================================================================== */
 @theme {
   /* --- Neutrals -------------------------------------------------------------------------
-     Cool and faintly blue. Pure greys read as "document"; a blue tint reads as "software". */
-  --color-ink: #0f172a;
-  --color-ink-soft: #1e293b;
-  --color-surface: #ffffff;
-  --color-canvas: #f8fafc;
-  --color-line: #e2e8f0;
-  --color-line-strong: #cbd5e1;
-  --color-muted: #64748b;
-  --color-faint: #94a3b8;
+     Warm, not cold, and never flat white. Pure #ffffff next to real content looks like a
+     word processor; a barely-there warm cast (the same trick Linear, Notion and Vercel's
+     dashboard all use) reads as considered instead of default. Every "surface" below is a
+     distinct value — there is no single repeated white anywhere in this file. */
+  --color-ink: #1c1917;
+  --color-ink-soft: #292524;
+  --color-surface: #fefcf9;
+  --color-surface-raised: #ffffff;
+  --color-canvas: #f6f3ed;
+  --color-line: #e7e1d6;
+  --color-line-strong: #d3cabb;
+  --color-muted: #78716c;
+  --color-faint: #a8a29e;
 
   /* --- Brand ----------------------------------------------------------------------------
      Deep indigo. Confident without the "default bootstrap blue" association, and it holds
@@ -117,7 +121,7 @@ h1 {
   background:
     radial-gradient(60rem 30rem at 15% -10%, rgb(99 102 241 / 0.16), transparent 60%),
     radial-gradient(45rem 26rem at 92% 8%, rgb(217 119 6 / 0.1), transparent 62%),
-    linear-gradient(180deg, #ffffff 0%, var(--color-canvas) 100%);
+    linear-gradient(180deg, var(--color-surface) 0%, var(--color-canvas) 100%);
 }
 
 .text-gradient {

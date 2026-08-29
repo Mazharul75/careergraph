@@ -20,7 +20,16 @@ from fastapi import Depends, HTTPException, Request, status
 from app.core.config import get_settings
 from app.core.rate_limit import RateLimiter, RedisRateLimiter
 
-RateLimitScope = Literal["login", "register", "refresh"]
+RateLimitScope = Literal[
+    "login",
+    "register",
+    "refresh",
+    "verify_email",
+    "resend_verification",
+    "google_auth",
+    "forgot_password",
+    "reset_password",
+]
 
 _limiter: RateLimiter | None = None
 
@@ -51,6 +60,25 @@ def _limits_for(scope: RateLimitScope) -> tuple[int, int]:
         return settings.rate_limit_login, settings.rate_limit_login_window_seconds
     if scope == "register":
         return settings.rate_limit_register, settings.rate_limit_register_window_seconds
+    if scope == "verify_email":
+        return settings.rate_limit_verify_email, settings.rate_limit_verify_email_window_seconds
+    if scope == "resend_verification":
+        return (
+            settings.rate_limit_resend_verification,
+            settings.rate_limit_resend_verification_window_seconds,
+        )
+    if scope == "google_auth":
+        return settings.rate_limit_google_auth, settings.rate_limit_google_auth_window_seconds
+    if scope == "forgot_password":
+        return (
+            settings.rate_limit_forgot_password,
+            settings.rate_limit_forgot_password_window_seconds,
+        )
+    if scope == "reset_password":
+        return (
+            settings.rate_limit_reset_password,
+            settings.rate_limit_reset_password_window_seconds,
+        )
     return settings.rate_limit_refresh, settings.rate_limit_refresh_window_seconds
 
 

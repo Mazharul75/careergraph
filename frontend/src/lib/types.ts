@@ -18,6 +18,19 @@ export interface User {
   full_name: string | null;
   role: UserRole;
   is_active: boolean;
+  email_verified: boolean;
+  /** False for a Google-only account — nothing to change a password to. */
+  has_password: boolean;
+}
+
+/** What POST /auth/register returns: the account plus, in local/CI only, the raw
+ * verification token that would otherwise only ever reach a real inbox. */
+export interface RegisterResult extends User {
+  dev_verification_token: string | null;
+}
+
+export interface ForgotPasswordResult {
+  dev_reset_token: string | null;
 }
 
 export interface Skill {

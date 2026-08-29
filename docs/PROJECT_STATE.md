@@ -3,7 +3,7 @@
 > **This is the handoff document.** Read it before your first reply in any session; update it
 > before writing any phase wrap-up. If it is stale, the next session starts blind.
 
-**Last updated:** Phases 8-11 complete + OOM hardening, 2026-08-21
+**Last updated:** Auth hardening + rebrand, 2026-08-21 (later same day)
 **Branch:** `feat/skill-extraction` — **405 tests passing**
 **Deployed:** API at `https://careergraph-api-f9n2.onrender.com`, frontend at
 `https://careergraph-fawn.vercel.app`. CD is green.
@@ -31,6 +31,20 @@ with the ordered plan and cheapest route, and `/settings`.
 **Now also done:** `/explore` (the skill graph drawn as SVG, 113 nodes and 128 edges laid out
 by dependency depth) and `/jobs/compare` (up to three roles side by side, plus the skills more
 than one of them wants — the highest-leverage thing to learn next).
+
+**Auth hardening (2026-08-21):** three real gaps closed after a competitor comparison —
+email verification (gates login, `dev_verification_token` escape hatch for local/CI),
+Google Sign-In (PyJWT-verified ID tokens, account linking by email, no new dependency), and
+password reset (revokes every existing session on reset — the detail most projects miss).
+`password_hash` is now nullable for Google-only accounts. Full rebrand: a drawn SVG logo (a
+three-node dependency path, matching the product's own thesis), self-hosted fonts, a warm
+neutral palette (`#fefcf9`/`#f6f3ed`, no flat `#ffffff` anywhere), a generated OG image via
+`next/og`. +49 backend tests (405 → 454). All three flows verified live end to end in the
+browser: register → verify → login, and forgot-password → reset → old password rejected →
+new password accepted.
+
+**Still open, explicitly:** real Postgres RLS, Playwright/Vitest frontend tests, a
+page-by-page UX audit beyond this pass. See the closing summary for what's next.
 
 ---
 

@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { Logo } from "@/components/Logo";
+
 /**
  * The marketing surface.
  *
@@ -207,11 +209,8 @@ export default function LandingPage() {
       {/* --- Nav ------------------------------------------------------------------------ */}
       <header className="sticky top-0 z-40 border-b border-[var(--color-line)]/70 bg-[var(--color-surface)]/80 backdrop-blur-md">
         <Container className="flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--color-brand)] font-display text-sm font-bold text-white">
-              C
-            </span>
-            <span className="font-display text-base font-bold tracking-tight">CareerGraph</span>
+          <Link href="/">
+            <Logo />
           </Link>
 
           <nav aria-label="Sections" className="hidden items-center gap-7 md:flex">
@@ -565,12 +564,7 @@ export default function LandingPage() {
       {/* --- Footer -------------------------------------------------------------------- */}
       <footer className="border-t border-[var(--color-line)] bg-[var(--color-surface)] py-10">
         <Container className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-[var(--color-brand)] font-display text-xs font-bold text-white">
-              C
-            </span>
-            <span className="text-sm font-semibold">CareerGraph</span>
-          </div>
+          <Logo size="sm" />
           <p className="text-sm text-[var(--color-muted)]">
             Skill-gap analysis over a prerequisite graph.
           </p>

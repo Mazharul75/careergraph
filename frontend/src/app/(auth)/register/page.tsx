@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
+import { GoogleSignInButton, OrDivider } from "@/components/GoogleSignInButton";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import type { UserRole } from "@/lib/types";
@@ -10,13 +11,16 @@ import type { UserRole } from "@/lib/types";
 const MIN_PASSWORD_LENGTH = 12;
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, resendVerification } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<UserRole>("job_seeker");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [devToken, setDevToken] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
 
   const tooShort = password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
 
@@ -25,11 +29,52 @@ export default function RegisterPage() {
     setError(null);
     setPending(true);
     try {
-      await register({ email, password, full_name: fullName || undefined, role });
+      const result = await register({ email, password, full_name: fullName || undefined, role });
+      setDevToken(result.dev_verification_token);
+      setRegistered(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not create your account.");
+    } finally {
       setPending(false);
     }
+  }
+
+  async function onResend() {
+    await resendVerification(email);
+    setResent(true);
+  }
+
+  if (registered) {
+    return (
+      <Card className="p-7 text-center">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[var(--color-brand-soft)] text-2xl">
+          ✉️
+        </div>
+        <h1 className="mt-4 text-xl font-semibold tracking-tight">Confirm your email</h1>
+        <p className="mt-1.5 text-sm text-[var(--color-muted)]">
+          We sent a link to <strong className="text-[var(--color-ink)]">{email}</strong>. Click
+          it to activate your account, then sign in.
+        </p>
+
+        {devToken ? (
+          <Link
+            href={`/verify-email?token=${devToken}`}
+            className="mt-4 inline-block text-xs text-[var(--color-muted)] underline"
+          >
+            Dev mode: skip the inbox and verify now
+          </Link>
+        ) : null}
+
+        <div className="mt-6 space-y-2">
+          <Link href="/login">
+            <Button className="w-full">Go to sign in</Button>
+          </Link>
+          <Button variant="secondary" className="w-full" onClick={() => void onResend()}>
+            {resent ? "Sent again ✓" : "Resend the email"}
+          </Button>
+        </div>
+      </Card>
+    );
   }
 
   return (
@@ -37,7 +82,12 @@ export default function RegisterPage() {
       <h1 className="text-xl font-semibold tracking-tight">Create your account</h1>
       <p className="mt-1 text-sm text-[var(--color-muted)]">Free, and takes a moment.</p>
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+      <div className="mt-6">
+        <GoogleSignInButton />
+      </div>
+      <OrDivider />
+
+      <form onSubmit={onSubmit} className="space-y-4">
         {error ? <Alert>{error}</Alert> : null}
         <Field label="Full name" hint="Optional.">
           <Input value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" />

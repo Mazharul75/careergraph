@@ -21,7 +21,9 @@ from app.models.user import User, UserRole
 from app.repositories.admin import AdminRepository
 from app.repositories.candidate import CandidateRepository
 from app.repositories.career_goal import CareerGoalRepository
+from app.repositories.email_verification_token import EmailVerificationTokenRepository
 from app.repositories.job import JobRepository
+from app.repositories.password_reset_token import PasswordResetTokenRepository
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.resume import ResumeRepository
 from app.repositories.skill import SkillRepository, UserSkillRepository
@@ -29,7 +31,9 @@ from app.repositories.user import UserRepository
 from app.services.admin import AdminService
 from app.services.auth import AuthService
 from app.services.candidates import CandidateService
+from app.services.email import EmailSenderProtocol, get_email_sender
 from app.services.goal import GoalService
+from app.services.google_auth import GoogleTokenVerifier, verify_google_id_token
 from app.services.job import JobService
 from app.services.learning_path import LearningPathService
 from app.services.match import MatchService
@@ -50,14 +54,57 @@ def get_refresh_token_repository(session: DbSession) -> RefreshTokenRepository:
     return RefreshTokenRepository(session)
 
 
+def get_email_verification_token_repository(
+    session: DbSession,
+) -> EmailVerificationTokenRepository:
+    return EmailVerificationTokenRepository(session)
+
+
+def get_password_reset_token_repository(session: DbSession) -> PasswordResetTokenRepository:
+    return PasswordResetTokenRepository(session)
+
+
 UserRepo = Annotated[UserRepository, Depends(get_user_repository)]
 RefreshTokenRepo = Annotated[RefreshTokenRepository, Depends(get_refresh_token_repository)]
+EmailVerificationTokenRepo = Annotated[
+    EmailVerificationTokenRepository, Depends(get_email_verification_token_repository)
+]
+PasswordResetTokenRepo = Annotated[
+    PasswordResetTokenRepository, Depends(get_password_reset_token_repository)
+]
+
+
+def get_email_sender_dep() -> EmailSenderProtocol:
+    """A dependency wrapper around ``get_email_sender`` so tests can override delivery
+    (via ``app.dependency_overrides``) without touching ``RESEND_API_KEY``."""
+    return get_email_sender()
+
+
+EmailSenderDep = Annotated[EmailSenderProtocol, Depends(get_email_sender_dep)]
+
+
+def get_google_verifier() -> GoogleTokenVerifier:
+    """The real, PyJWT-backed Google ID token verifier.
+
+    A dependency rather than a hardcoded default, so an integration test can override it
+    through ``app.dependency_overrides`` — the same seam ``get_task_dispatcher`` uses — and
+    exercise the whole account-creation/linking flow with a fake identity, no real Google
+    credentials or network access required.
+    """
+    return verify_google_id_token
+
+
+GoogleVerifierDep = Annotated[GoogleTokenVerifier, Depends(get_google_verifier)]
 
 
 def get_auth_service(
     session: DbSession,
     users: UserRepo,
     refresh_tokens: RefreshTokenRepo,
+    email_tokens: EmailVerificationTokenRepo,
+    password_reset_tokens: PasswordResetTokenRepo,
+    email_sender: EmailSenderDep,
+    google_verifier: GoogleVerifierDep,
 ) -> AuthService:
     """Assemble AuthService from its collaborators.
 
@@ -65,7 +112,15 @@ def get_auth_service(
     ``UnitOfWork`` protocol, so the service sees only ``commit`` and ``flush`` — it cannot
     reach around the repositories and execute its own SQL.
     """
-    return AuthService(users=users, refresh_tokens=refresh_tokens, uow=session)
+    return AuthService(
+        users=users,
+        refresh_tokens=refresh_tokens,
+        email_tokens=email_tokens,
+        password_reset_tokens=password_reset_tokens,
+        email_sender=email_sender,
+        uow=session,
+        google_verifier=google_verifier,
+    )
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]

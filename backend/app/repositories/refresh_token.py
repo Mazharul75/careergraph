@@ -45,6 +45,24 @@ class RefreshTokenRepository(BaseRepository[RefreshToken]):
         result = cast(CursorResult[Any], await self._session.execute(stmt))
         return result.rowcount or 0
 
+    async def revoke_all_for_user(self, user_id: uuid.UUID, revoked_at: datetime) -> int:
+        """Kill every live session for a user, across every family.
+
+        ``revoke_family`` ends one rotation chain — the right tool for reuse detection, where
+        exactly one compromised chain needs to die. A password reset is a different event: if
+        the account was ever going to be reset because a device or a token was compromised,
+        every other session is suspect too, not just the one connected to whatever triggered
+        this. Nothing short of "every session, everywhere" is the correct response.
+        """
+        stmt = (
+            update(RefreshToken)
+            .where(RefreshToken.user_id == user_id)
+            .where(RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=revoked_at)
+        )
+        result = cast(CursorResult[Any], await self._session.execute(stmt))
+        return result.rowcount or 0
+
     async def list_active_for_user(self, user_id: uuid.UUID) -> list[RefreshToken]:
         """Live tokens for a user — one row per signed-in device."""
         stmt = (
