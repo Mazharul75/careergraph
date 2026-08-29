@@ -11,6 +11,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from app.core.config import get_settings
 from app.core.security import (
@@ -53,6 +54,37 @@ from app.services.exceptions import (
     RefreshTokenReuseDetectedError,
 )
 from app.services.google_auth import GoogleTokenVerifier, verify_google_id_token
+
+
+def _token_error(
+    stored: EmailVerificationToken | PasswordResetToken | None,
+    *,
+    kind: Literal["verification", "reset"],
+) -> InvalidVerificationTokenError | InvalidPasswordResetTokenError:
+    """Pick the specific reason a token failed to redeem.
+
+    ``is_usable()`` collapses "never existed", "already used", and "expired" into one
+    boolean for control flow, but not for what the person holding the link should be told —
+    "already used" and "expired" call for different next steps. Distinguishing them here is
+    safe in a way it would not be for, say, a login attempt: this token is 256 random bits
+    that only ever reached one inbox, so telling its holder which of three things happened to
+    their own already-private secret cannot leak anything about anyone else's account.
+    """
+    error_cls = (
+        InvalidVerificationTokenError if kind == "verification" else InvalidPasswordResetTokenError
+    )
+    noun = "verification link" if kind == "verification" else "password reset link"
+
+    if stored is None:
+        return error_cls(
+            f"That {noun} isn't valid. Copy it directly from the email, or request a new one."
+        )
+    if stored.used_at is not None:
+        return error_cls(
+            f"That {noun} has already been used. If you asked for another one since, use the "
+            "most recent email — only the newest link stays active."
+        )
+    return error_cls(f"That {noun} has expired. Request a new one.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,13 +174,15 @@ class AuthService:
     async def verify_email(self, *, raw_token: str) -> User:
         """Redeem an emailed link.
 
-        One generic error for "no such token", "already used", and "expired" — the token is
-        256 random bits, so there is no meaningful enumeration risk to guard against by
-        distinguishing them, and a single message is simpler for the frontend to render.
+        Three different failures, three different messages. Distinguishing them is safe here
+        in a way it would not be for, say, a login attempt: this token is 256 random bits that
+        only ever reached one inbox, so telling its holder *which* of three things happened to
+        their own already-private secret leaks nothing about anyone else's account — and it
+        is the difference between a support ticket and someone quietly giving up.
         """
         stored = await self._email_tokens.get_by_hash(hash_opaque_token(raw_token))
         if stored is None or not stored.is_usable():
-            raise InvalidVerificationTokenError
+            raise _token_error(stored, kind="verification")
 
         now = datetime.now(UTC)
         stored.used_at = now
@@ -259,7 +293,7 @@ class AuthService:
         """
         stored = await self._password_reset_tokens.get_by_hash(hash_opaque_token(raw_token))
         if stored is None or not stored.is_usable():
-            raise InvalidPasswordResetTokenError
+            raise _token_error(stored, kind="reset")
 
         user = await self._users.get(stored.user_id)
         if user is None:  # pragma: no cover - the FK guarantees this cannot happen

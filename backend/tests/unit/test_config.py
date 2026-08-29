@@ -23,6 +23,11 @@ def _settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
         "database_url": _VALID_DSN,
         "jwt_secret_key": _STRONG_SECRET,
+        # A real-looking value by default, the same reasoning as jwt_secret_key above: most
+        # tests here are not *about* this field, and the startup guard that refuses a
+        # localhost frontend_url outside development would otherwise fail every one of them
+        # that happens to construct a staging/production Settings for an unrelated reason.
+        "frontend_url": "https://careergraph.example.com",
     }
     values.update(overrides)
     # _env_file is a pydantic-settings runtime kwarg absent from the generated __init__
@@ -104,6 +109,29 @@ class TestJwtSecret:
     def test_short_secret_is_tolerated_locally(self) -> None:
         # Local development should not be obstructed by production-grade requirements.
         assert _settings(environment="local", jwt_secret_key="short") is not None
+
+
+class TestFrontendUrl:
+    """Verification and password-reset links are built from this. Left at the local
+    default in a real deployment, they email real users a link to someone's own laptop —
+    with no error anywhere obvious, since the send itself still succeeds. See the incident
+    this test locks in: PROJECT_STATE.md, 2026-08-30."""
+
+    def test_localhost_default_is_fine_locally(self) -> None:
+        # Explicit, not relying on `_settings()`'s own baseline override above — this is
+        # specifically exercising `Settings.frontend_url`'s actual class default.
+        assert _settings(environment="local", frontend_url="http://localhost:3000") is not None
+
+    @pytest.mark.parametrize("env", ["staging", "production"])
+    def test_localhost_is_refused_in_deployed_environments(self, env: str) -> None:
+        with pytest.raises(ValidationError, match="FRONTEND_URL"):
+            _settings(environment=env, frontend_url="http://localhost:3000")
+
+    @pytest.mark.parametrize("env", ["staging", "production"])
+    def test_a_real_url_is_accepted_in_deployed_environments(self, env: str) -> None:
+        assert (
+            _settings(environment=env, frontend_url="https://careergraph.example.com") is not None
+        )
 
 
 class TestTokenLifetimes:
