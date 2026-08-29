@@ -80,3 +80,22 @@ async def set_role(
 ) -> AdminUserResponse:
     user = await admin.set_role(actor=current_user, user_id=user_id, role=payload.role)
     return AdminUserResponse.model_validate(user)
+
+
+@router.post(
+    "/users/{user_id}/verify-email",
+    response_model=AdminUserResponse,
+    summary="Manually verify an account's email",
+    responses={404: {"description": "No such user"}},
+)
+async def verify_email(user_id: uuid.UUID, admin: AdminServiceDep) -> AdminUserResponse:
+    """The escape hatch for a real email provider that cannot yet deliver to this address.
+
+    Sandbox and free-tier senders (Resend's included) restrict delivery until a real domain
+    is verified — anyone who registers with an address other than the account owner's own
+    would otherwise be stuck forever with a link that never arrives. An operator vouching for
+    the account directly is the deliberate, honest way around that, not a security bypass:
+    it requires an admin, and it is visible in the audit trail the same as any other change.
+    """
+    user = await admin.verify_email(user_id=user_id)
+    return AdminUserResponse.model_validate(user)

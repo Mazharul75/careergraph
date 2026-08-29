@@ -44,6 +44,8 @@ class AdminUserRow:
     full_name: str | None
     role: UserRole
     is_active: bool
+    email_verified: bool
+    has_password: bool
     created_at: datetime
     skill_count: int
     resume_count: int
@@ -137,6 +139,8 @@ class AdminRepository(BaseRepository[User]):
                     User.full_name,
                     User.role,
                     User.is_active,
+                    User.email_verified_at,
+                    User.password_hash,
                     User.created_at,
                     skills_sq.label("skill_count"),
                     resumes_sq.label("resume_count"),
@@ -154,6 +158,8 @@ class AdminRepository(BaseRepository[User]):
                 full_name=row.full_name,
                 role=row.role,
                 is_active=row.is_active,
+                email_verified=row.email_verified_at is not None,
+                has_password=row.password_hash is not None,
                 created_at=row.created_at,
                 skill_count=int(row.skill_count or 0),
                 resume_count=int(row.resume_count or 0),

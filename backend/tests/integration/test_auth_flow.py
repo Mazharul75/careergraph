@@ -385,8 +385,18 @@ class TestGoogleSignIn:
     """Exercises the whole flow with a fake identity, via the ``get_google_verifier``
     dependency override — no real Google credentials or network access needed."""
 
-    async def test_disabled_without_a_configured_client_id(self, client: AsyncClient) -> None:
-        # No override installed and settings carry no GOOGLE_CLIENT_ID by default.
+    async def test_disabled_without_a_configured_client_id(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Explicit, not assumed: a developer's own real `.env` may genuinely have
+        # GOOGLE_CLIENT_ID set (to test the feature locally against a real Google project).
+        # Patching the already-constructed, process-wide settings singleton directly — rather
+        # than neutralising its env-file source the way the unit tests do — is deliberate
+        # here: this suite's DATABASE_URL and JWT_SECRET_KEY commonly live *only* in that
+        # same file with no shell-exported fallback, and blanking the file source would take
+        # the whole app down with Google, not just Google.
+        monkeypatch.setattr(get_settings(), "google_client_id", None)
+
         response = await client.post(f"{AUTH}/google", json={"id_token": "irrelevant"})
         assert response.status_code == 503
 

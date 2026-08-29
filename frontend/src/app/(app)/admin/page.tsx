@@ -11,7 +11,13 @@
 
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
-import { useAdminUsers, useSetUserActive, useSetUserRole, useSystemStats } from "@/lib/queries";
+import {
+  useAdminUsers,
+  useAdminVerifyEmail,
+  useSetUserActive,
+  useSetUserRole,
+  useSystemStats,
+} from "@/lib/queries";
 import type { AdminUser, UserRole } from "@/lib/types";
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "warn" }) {
@@ -38,8 +44,12 @@ const ROLE_TONE: Record<UserRole, "neutral" | "brand" | "danger"> = {
 function UserRow({ row, selfId }: { row: AdminUser; selfId: string | undefined }) {
   const setActive = useSetUserActive();
   const setRole = useSetUserRole();
+  const verifyEmail = useAdminVerifyEmail();
   const isSelf = row.id === selfId;
-  const busy = setActive.isPending || setRole.isPending;
+  const busy = setActive.isPending || setRole.isPending || verifyEmail.isPending;
+  // Verifying only ever means something for a password account — a Google sign-in is
+  // already verified the moment Google itself vouches for the address.
+  const needsManualVerification = !row.email_verified && row.has_password;
 
   return (
     <tr className="border-t border-[var(--color-line)]">
@@ -54,14 +64,31 @@ function UserRow({ row, selfId }: { row: AdminUser; selfId: string | undefined }
         {row.skill_count} skills · {row.resume_count} resumes
       </td>
       <td className="py-3 pr-4">
-        {row.is_active ? (
-          <Badge tone="positive">active</Badge>
-        ) : (
-          <Badge tone="danger">suspended</Badge>
-        )}
+        <div className="flex flex-wrap gap-1.5">
+          {row.is_active ? (
+            <Badge tone="positive">active</Badge>
+          ) : (
+            <Badge tone="danger">suspended</Badge>
+          )}
+          {needsManualVerification ? (
+            <Badge tone="warn">email unconfirmed</Badge>
+          ) : null}
+        </div>
       </td>
       <td className="py-3">
         <div className="flex flex-wrap justify-end gap-2">
+          {needsManualVerification ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => verifyEmail.mutate(row.id)}
+              title="Their email provider may not be able to deliver a real link — vouch for them directly."
+            >
+              Verify email
+            </Button>
+          ) : null}
+
           <select
             aria-label={`Role for ${row.email}`}
             className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2 py-1 text-xs"
@@ -182,6 +209,12 @@ export default function AdminPage() {
         <p className="mt-3 text-xs text-[var(--color-muted)]">
           Suspending an account takes effect on its next request — the API re-reads active
           status on every call, so an unexpired token stops working immediately.
+        </p>
+        <p className="mt-1.5 text-xs text-[var(--color-muted)]">
+          &ldquo;Email unconfirmed&rdquo; usually means the address is not the one this
+          deployment&apos;s email provider is allowed to deliver to yet (common on a
+          sandbox sender before a domain is verified) — &ldquo;Verify email&rdquo; unblocks
+          that person without waiting on a link that will never arrive.
         </p>
       </section>
     </>

@@ -319,3 +319,58 @@ class TestScoringWithEmbeddedResumes:
         response = await client.get(f"{JOBS}/{job_id}/candidates", headers=recruiter)
 
         assert response.status_code == 200, response.text
+
+    async def test_admin_can_manually_verify_an_unverified_account(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """The escape hatch for a real email provider that cannot yet deliver to this
+        address — an admin vouches for the account directly, no link required."""
+        email = f"stuck-{uuid.uuid4().hex[:8]}@example.com"
+        registered = await client.post(
+            f"{AUTH}/register", json={"email": email, "password": PASSWORD}
+        )
+        assert registered.json()["email_verified"] is False
+
+        # Confirms the account really is stuck: the normal path is blocked.
+        blocked = await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
+        assert blocked.status_code == 403
+
+        headers = await make_admin(client, db_session)
+        target_id = registered.json()["id"]
+
+        response = await client.post(f"{ADMIN}/users/{target_id}/verify-email", headers=headers)
+
+        assert response.status_code == 200
+        assert response.json()["email_verified"] is True
+
+        unblocked = await client.post(f"{AUTH}/login", json={"email": email, "password": PASSWORD})
+        assert unblocked.status_code == 200
+
+    async def test_verify_email_is_idempotent(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        headers = await make_admin(client, db_session)
+        me = (await client.get(f"{AUTH}/me", headers=headers)).json()
+        assert me["email_verified"] is True  # make_admin's account is already verified
+
+        response = await client.post(f"{ADMIN}/users/{me['id']}/verify-email", headers=headers)
+
+        assert response.status_code == 200
+        assert response.json()["email_verified"] is True
+
+    async def test_verify_email_requires_admin(self, client: AsyncClient) -> None:
+        headers, _ = await register(client)
+        me = (await client.get(f"{AUTH}/me", headers=headers)).json()
+
+        response = await client.post(f"{ADMIN}/users/{me['id']}/verify-email", headers=headers)
+
+        assert response.status_code == 403
+
+    async def test_admin_user_list_reports_verification_and_password_state(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        headers = await make_admin(client, db_session)
+
+        users = (await client.get(f"{ADMIN}/users", headers=headers)).json()
+
+        assert all("email_verified" in u and "has_password" in u for u in users)
