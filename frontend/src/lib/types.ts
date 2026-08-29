@@ -205,6 +205,8 @@ export interface AdminUser {
   full_name: string | null;
   role: UserRole;
   is_active: boolean;
+  email_verified: boolean;
+  has_password: boolean;
   created_at: string;
   skill_count: number;
   resume_count: number;

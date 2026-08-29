@@ -322,6 +322,22 @@ export function useSetUserRole() {
   });
 }
 
+/** The escape hatch for a real email provider that cannot yet deliver to this address —
+ * a sandbox/free-tier sender (Resend's included) only reaches the account owner's own
+ * inbox until a domain is verified, so anyone else who registers needs an admin to vouch
+ * for them directly instead of a link that will never arrive. */
+export function useAdminVerifyEmail() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch<AdminUser>(`/api/v1/admin/users/${userId}/verify-email`, { method: "POST" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.adminUsers });
+      void client.invalidateQueries({ queryKey: keys.adminStats });
+    },
+  });
+}
+
 export function useSkillPath(skillId: string): UseQueryResult<SkillPath> {
   return useQuery({
     queryKey: keys.skillPath(skillId),

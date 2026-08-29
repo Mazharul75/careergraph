@@ -42,6 +42,8 @@ class AdminUserResponse(BaseModel):
     full_name: str | None
     role: UserRole
     is_active: bool
+    email_verified: bool
+    has_password: bool
     created_at: datetime
     skill_count: int = 0
     resume_count: int = 0

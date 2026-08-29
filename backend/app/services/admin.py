@@ -8,6 +8,7 @@ easy to forget on the next endpoint.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from app.models.user import User, UserRole
 from app.repositories.admin import AdminRepository, AdminUserRow, SystemStats
@@ -76,4 +77,26 @@ class AdminService:
 
         target.role = role
         await self._uow.commit()
+        return target
+
+    async def verify_email(self, *, user_id: uuid.UUID) -> User:
+        """Mark an account verified without a real email ever being delivered.
+
+        Exists for exactly one situation: a transactional email provider's free/sandbox tier
+        (Resend's included) can only deliver to the address that owns the account until a
+        real domain is verified, so anyone else who registers is otherwise stuck forever with
+        no way to prove they control their inbox. An operator manually vouching for the
+        account is the deliberate escape hatch — no different in kind from a support agent
+        confirming an identity by other means.
+
+        Idempotent: verifying an already-verified account is a no-op, not an error, so a
+        double-click in the console cannot raise anything worth showing the operator.
+        """
+        target = await self._users.get(user_id)
+        if target is None:
+            raise UserNotFoundError
+
+        if target.email_verified_at is None:
+            target.email_verified_at = datetime.now(UTC)
+            await self._uow.commit()
         return target

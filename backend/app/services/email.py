@@ -52,6 +52,18 @@ class ResendEmailSender:
                     json={"from": self._from, "to": [to], "subject": subject, "html": html},
                 )
                 response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            # Resend's response body names the exact reason (invalid key, unverified domain,
+            # the sandbox sender's recipient restriction, ...) — logging only the status code,
+            # as this used to, turns every failure into a guessing game. The most common cause
+            # on a fresh setup: the shared `onboarding@resend.dev` sender can only deliver to
+            # the email address that owns the Resend account, until a real domain is verified.
+            logger.error(
+                "Failed to send email to %s via Resend: %s %s",
+                to,
+                exc.response.status_code,
+                exc.response.text,
+            )
         except httpx.HTTPError:
             logger.exception("Failed to send email to %s via Resend", to)
 

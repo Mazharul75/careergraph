@@ -8,9 +8,11 @@ which trains you to ignore CI — the worst possible outcome for a pipeline.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 
 # Derived from the model rather than hand-listed.
 #
@@ -27,16 +29,28 @@ SETTINGS_ENV_VARS = tuple(name.upper() for name in Settings.model_fields)
 
 
 @pytest.fixture(autouse=True)
-def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Remove application settings from the process environment for the duration of a test.
+def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Make `Settings()` hermetic for the duration of a test — no process environment, no
+    `.env` file on disk.
 
-    `Settings(_env_file=None)` skips the .env *file* but still reads the process environment.
-    Without this fixture, a test asserting a field's default value passes locally and fails in
-    CI — or worse, passes in both for the wrong reason.
+    Two separate sources have to be neutralised, not one. Stripping process environment
+    variables handles a CI runner's or a container's exports, but pydantic-settings reads
+    `../.env` and `.env` **directly off disk**, entirely independent of `os.environ` — so a
+    developer's own real `.env` file (a Google OAuth client id set for local testing, a real
+    Sentry DSN, anything optional) leaks into every test that asserts a field is absent by
+    default, regardless of what monkeypatch does to the process environment. This bit a real
+    test the day `GOOGLE_CLIENT_ID` was first added to a contributor's own `.env`.
 
-    monkeypatch restores the original environment automatically at teardown, and test modules
-    that need a specific value (a JWT signing key, say) set it in their own fixture, which runs
-    after this one.
+    Setting `env_file=None` on the class for the duration of the test closes that second path;
+    `monkeypatch.setattr` restores the original `model_config` automatically at teardown.
+    monkeypatch's own environment stripping still runs too, for the process-environment case
+    a container or CI runner represents.
     """
     for name in SETTINGS_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    get_settings.cache_clear()
+    yield
+    # A cached Settings built under this test's neutralised model_config must not survive to
+    # be read by whatever runs next, after monkeypatch has restored the real env_file.
+    get_settings.cache_clear()
