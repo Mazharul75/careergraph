@@ -20,7 +20,7 @@ dependencies = [
     "celery[redis]>=5.4.0",
     # Sync Postgres driver for the Celery worker. Celery has no event loop, so it cannot use
     # the asyncpg engine the API uses — see ADR-0005.
-    "psycopg[binary]>=3.2.3",
+    "psycopg[binary]>=3.3.4",
     # FastAPI needs this to parse multipart/form-data file uploads.
     "python-multipart>=0.0.20",
     # Text extraction. Both are pure-Python and small; nothing here pulls in a native toolchain.
