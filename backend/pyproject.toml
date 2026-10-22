@@ -9,7 +9,7 @@ dependencies = [
     # `email` extra pulls in email-validator, backing Pydantic's EmailStr.
     "pydantic[email]>=2.10.4",
     "pydantic-settings>=2.7.0",
-    "sqlalchemy[asyncio]>=2.0.36",
+    "sqlalchemy[asyncio]>=2.0.52",
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
     # Argon2id password hashing. Used directly rather than through passlib, which has had no
