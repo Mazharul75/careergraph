@@ -5,7 +5,7 @@ description = "CareerGraph API and background worker"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.6",
-    "uvicorn[standard]>=0.34.0",
+    "uvicorn[standard]>=0.52.2",
     # `email` extra pulls in email-validator, backing Pydantic's EmailStr.
     "pydantic[email]>=2.10.4",
     "pydantic-settings>=2.7.0",
